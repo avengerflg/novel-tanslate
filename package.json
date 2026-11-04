@@ -1,0 +1,14 @@
+{
+  "name": "novel-translate",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "bun install --cwd server && bun install --cwd client",
+    "dev:server": "bun run --cwd server dev",
+    "dev:client": "bun run --cwd client dev",
+    "dev": "concurrently \"bun run dev:server\" \"bun run dev:client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
