@@ -463,23 +463,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </button>
       </header>
 
-      {/* Sleek Floating Progress / XP Pill when scrolling down (Matches Image 10) */}
-      <div
-        className={`fixed top-4 right-4 z-30 transition-all duration-300 pointer-events-none ${
-          !controlsVisible && scrollProgress > 2
-            ? 'translate-y-0 opacity-100 scale-100'
-            : '-translate-y-4 opacity-0 scale-95'
-        }`}
-      >
-        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#14161f]/85 backdrop-blur-md border border-white/[0.08] text-[11px] font-medium text-slate-200 shadow-xl shadow-black/50">
-          <span className="text-amber-400 font-bold flex items-center gap-1">
-            <span className="text-xs">⚡</span> +1 XP
-          </span>
-          <span className="text-slate-600">—</span>
-          <span className="text-slate-400">Chapter read</span>
-        </div>
-      </div>
-
       {/* ── Main Prose Content ── */}
       <article
         id="chapter-article"
