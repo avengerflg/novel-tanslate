@@ -20,8 +20,20 @@ import {
   Languages,
   Scroll,
   Volume2,
-  X
+  X,
+  MessageCircle,
+  MessageSquare,
+  Send,
+  Heart
 } from 'lucide-react';
+
+interface ChapterComment {
+  id: string;
+  author: string;
+  text: string;
+  timestamp: string;
+  likes: number;
+}
 
 interface ReaderViewProps {
   novel: Novel;
@@ -77,9 +89,110 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   // Autoplay popup & execution state (matches Image 2)
   const [autoplayMenuOpen, setAutoplayMenuOpen] = useState(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
-  const [scrollSpeed, setScrollSpeed] = useState<number>(1); // pixels per frame
+  const [scrollSpeed, setScrollSpeed] = useState<number>(1.2); // pixels per frame
   const [isReadingAloud, setIsReadingAloud] = useState(false);
   const [activeSpeechIdx, setActiveSpeechIdx] = useState<number>(-1);
+
+  // Paragraph comments state (saved in localStorage)
+  const [activeCommentPara, setActiveCommentPara] = useState<number | null>(null);
+  const [paraCommentText, setParaCommentText] = useState('');
+  const [commentsMap, setCommentsMap] = useState<Record<string, string[]>>({});
+
+  // Chapter-level comments state (saved in localStorage)
+  const [chapterComments, setChapterComments] = useState<ChapterComment[]>([]);
+  const [newCommentAuthor, setNewCommentAuthor] = useState('');
+  const [newCommentText, setNewCommentText] = useState('');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`novel_comments_${chapter.id}`);
+      if (saved) setCommentsMap(JSON.parse(saved));
+      else setCommentsMap({});
+    } catch {}
+
+    try {
+      const savedCh = localStorage.getItem(`novel_chapter_comments_${chapter.id}`);
+      if (savedCh) {
+        setChapterComments(JSON.parse(savedCh));
+      } else {
+        const initial: ChapterComment[] = [
+          {
+            id: 'c1',
+            author: 'DaoistSeeker',
+            text: 'Great chapter! The cultivation realm breakthrough in this chapter is so crisp.',
+            timestamp: '2 hours ago',
+            likes: 5
+          },
+          {
+            id: 'c2',
+            author: 'SwordMaster99',
+            text: 'Can’t wait to see what happens in the sect selection next!',
+            timestamp: '5 hours ago',
+            likes: 8
+          }
+        ];
+        setChapterComments(initial);
+        localStorage.setItem(`novel_chapter_comments_${chapter.id}`, JSON.stringify(initial));
+      }
+    } catch {}
+  }, [chapter.id]);
+
+  const handleAddComment = (paraIdx: number) => {
+    if (!paraCommentText.trim()) return;
+    const key = `novel_comments_${chapter.id}`;
+    const pKey = `p_${paraIdx}`;
+    const nextList = [...(commentsMap[pKey] || []), paraCommentText.trim()];
+    const nextMap = { ...commentsMap, [pKey]: nextList };
+    setCommentsMap(nextMap);
+    try {
+      localStorage.setItem(key, JSON.stringify(nextMap));
+    } catch {}
+    setParaCommentText('');
+    setActiveCommentPara(null);
+  };
+
+  const handleAddChapterComment = () => {
+    if (!newCommentText.trim()) return;
+    const author = newCommentAuthor.trim() || 'Cultivator';
+    const newComment: ChapterComment = {
+      id: `c_${Date.now()}`,
+      author,
+      text: newCommentText.trim(),
+      timestamp: 'Just now',
+      likes: 0
+    };
+    const nextList = [newComment, ...chapterComments];
+    setChapterComments(nextList);
+    try {
+      localStorage.setItem(`novel_chapter_comments_${chapter.id}`, JSON.stringify(nextList));
+    } catch {}
+    setNewCommentText('');
+  };
+
+  const handleLikeChapterComment = (commentId: string) => {
+    const nextList = chapterComments.map((c) =>
+      c.id === commentId ? { ...c, likes: c.likes + 1 } : c
+    );
+    setChapterComments(nextList);
+    try {
+      localStorage.setItem(`novel_chapter_comments_${chapter.id}`, JSON.stringify(nextList));
+    } catch {}
+  };
+
+  const totalParagraphComments = Object.values(commentsMap).reduce((acc, list) => acc + list.length, 0);
+  const totalCommentCount = chapterComments.length + totalParagraphComments;
+
+  // Sync scroll speed with settings (low, normal, high, or wpm)
+  useEffect(() => {
+    if (settings.scrollSpeedPreset === 'low') {
+      setScrollSpeed(0.6);
+    } else if (settings.scrollSpeedPreset === 'high') {
+      setScrollSpeed(2.2);
+    } else {
+      const pace = settings.readingPaceWpm ? Math.max(0.6, settings.readingPaceWpm / 200) : 1.2;
+      setScrollSpeed(pace);
+    }
+  }, [settings.scrollSpeedPreset, settings.readingPaceWpm]);
 
   const autoScrollRef = useRef<number | null>(null);
 
@@ -141,8 +254,8 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         }
       }
 
-      // If at top of chapter, always keep options visible
-      if (currentY <= 60) {
+      // If at top of chapter, always keep options visible unless hideHeaderInReader is set
+      if (currentY <= 60 && !settings.hideHeaderInReader) {
         setControlsVisible(true);
       } else {
         const diff = currentY - lastScrollY.current;
@@ -161,7 +274,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [settings.infiniteScrollEnabled, isFetchingNext, isTranslating]);
+  }, [settings.infiniteScrollEnabled, settings.hideHeaderInReader, isFetchingNext, isTranslating]);
 
   // Tap on text area toggles controls visibility
   const handleContentClick = (e: React.MouseEvent) => {
@@ -258,14 +371,41 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       if (currentIdx >= paragraphs.length) {
         setIsReadingAloud(false);
         setActiveSpeechIdx(-1);
+        if (settings.continueNextChapter !== false && (nextChapter || chapter.nextUrl)) {
+          handleNextClick();
+        }
         return;
       }
 
       setActiveSpeechIdx(currentIdx);
+
+      // Follow text auto-scrolling
+      if (settings.followText !== false) {
+        const el = document.getElementById(`para-${currentIdx}`);
+        if (el) {
+          const block =
+            settings.readingLine === 'top'
+              ? 'start'
+              : settings.readingLine === 'spot'
+              ? 'nearest'
+              : 'center';
+          el.scrollIntoView({
+            behavior: settings.scrollingBehavior === 'page' ? ('instant' as any) : 'smooth',
+            block
+          });
+        }
+      }
+
       const utterance = new SpeechSynthesisUtterance(paragraphs[currentIdx]);
-      utterance.rate = 1.0;
+      utterance.rate = settings.ttsRate || 1.0;
       utterance.pitch = 1.0;
       utterance.lang = chapter.status === 'translated' ? 'en-US' : 'zh-CN';
+
+      if (settings.ttsVoice && 'speechSynthesis' in window) {
+        const voices = window.speechSynthesis.getVoices();
+        const v = voices.find((vox) => vox.name === settings.ttsVoice);
+        if (v) utterance.voice = v;
+      }
 
       utterance.onend = () => {
         currentIdx++;
@@ -361,7 +501,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   };
 
   return (
-    <div className={`min-h-[100dvh] pb-32 sm:pb-36 transition-colors duration-200 theme-${settings.theme} relative bg-[#0c0d10]`}>
+    <div className={`min-h-[100dvh] pb-32 sm:pb-36 transition-colors duration-200 theme-${settings.theme} relative gpu-layer`}>
       
       {/* Top Reading Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-white/[0.06] z-50 pointer-events-none">
@@ -373,7 +513,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* ── Top Header (Exact Kayn Scans Style) ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between text-slate-100 select-none transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between text-slate-100 select-none transition-all duration-300 ease-in-out gpu-layer ${
           controlsVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -558,53 +698,145 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                       Chapter {chapter.index}: {displayTitle}
                     </p>
                   )}
-                  {translatedParagraphs.map((para, idx) => (
-                    <div
-                      key={idx}
-                      className={`relative group rounded-xl transition ${
-                        activeSpeechIdx === idx ? 'bg-amber-500/15 p-2 rounded-xl ring-1 ring-amber-500/40' : ''
-                      }`}
-                      onMouseEnter={() => setHoveredIdx(idx)}
-                      onMouseLeave={() => setHoveredIdx(null)}
-                    >
-                      <p itemProp="text" className="text-left selection:bg-amber-500/30">
-                        {para}
-                      </p>
+                  {translatedParagraphs.map((para, idx) => {
+                    const paraComments = commentsMap[`p_${idx}`] || [];
+                    const isSpeaking = activeSpeechIdx === idx && settings.ttsHighlightMode !== 'off';
+                    return (
+                      <div
+                        id={`para-${idx}`}
+                        key={idx}
+                        className={`relative group rounded-xl transition duration-150 ${
+                          isSpeaking ? 'bg-amber-500/15 p-3 rounded-xl ring-1 ring-amber-500/40 shadow-sm' : ''
+                        }`}
+                        onMouseEnter={() => setHoveredIdx(idx)}
+                        onMouseLeave={() => setHoveredIdx(null)}
+                      >
+                        <p itemProp="text" className="text-left selection:bg-amber-500/30">
+                          {para}
+                          {settings.paragraphComments !== false && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCommentPara(activeCommentPara === idx ? null : idx);
+                              }}
+                              className="inline-flex items-center gap-1 ml-2.5 px-2 py-0.5 rounded-full bg-white/[0.05] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 text-[11px] font-mono transition touch-active select-none align-middle"
+                              title="Paragraph notes & comments"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              {paraComments.length > 0 && <span>{paraComments.length}</span>}
+                            </button>
+                          )}
+                        </p>
 
-                      {/* Tooltip with raw Chinese on hover */}
-                      {settings.showChineseOnHover && hoveredIdx === idx && rawParagraphs[idx] && (
-                        <div className="mt-2 p-3 rounded-2xl bg-[#14161d] text-white text-xs sm:text-sm font-chinese leading-relaxed border border-white/10 shadow-2xl animate-in fade-in">
-                          <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1 tracking-wider">
-                            Original Chinese
-                          </span>
-                          {rawParagraphs[idx]}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {/* Inline paragraph comments popover */}
+                        {activeCommentPara === idx && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="my-3 p-3.5 rounded-2xl bg-[#14161f] border border-amber-500/30 shadow-2xl space-y-2.5 text-xs animate-in fade-in"
+                          >
+                            <div className="flex items-center justify-between text-slate-400 font-semibold border-b border-white/[0.06] pb-2">
+                              <span className="flex items-center gap-1.5 text-slate-200">
+                                <MessageCircle className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Paragraph Notes ({paraComments.length})</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setActiveCommentPara(null)}
+                                className="w-6 h-6 rounded-full hover:bg-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white"
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            {paraComments.length > 0 ? (
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                {paraComments.map((c, ci) => (
+                                  <div key={ci} className="p-2 rounded-xl bg-white/[0.03] text-slate-200 border border-white/[0.04] leading-relaxed">
+                                    {c}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-slate-500 italic py-1">No comments on this paragraph yet. Add one below!</p>
+                            )}
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <input
+                                type="text"
+                                placeholder="Add note or comment..."
+                                value={paraCommentText}
+                                onChange={(e) => setParaCommentText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleAddComment(idx);
+                                }}
+                                className="flex-1 px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.1] text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddComment(idx)}
+                                className="p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold transition touch-active shrink-0"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tooltip with raw Chinese on hover */}
+                        {settings.showChineseOnHover && hoveredIdx === idx && rawParagraphs[idx] && (
+                          <div className="mt-2 p-3 rounded-2xl bg-[#14161d] text-white text-xs sm:text-sm font-chinese leading-relaxed border border-white/10 shadow-2xl animate-in fade-in">
+                            <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1 tracking-wider">
+                              Original Chinese
+                            </span>
+                            {rawParagraphs[idx]}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
               {/* Mode 2: Bilingual */}
               {settings.viewMode === 'bilingual' && chapter.status === 'translated' && (
                 <div className="space-y-6 sm:space-y-7">
-                  {translatedParagraphs.map((para, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-4 sm:p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] ${
-                        activeSpeechIdx === idx ? 'ring-2 ring-amber-500/50 bg-amber-500/5' : ''
-                      }`}
-                    >
-                      <p itemProp="text" className="text-justify md:text-left font-medium">
-                        {para}
-                      </p>
-                      {rawParagraphs[idx] && (
-                        <p className="mt-2.5 text-xs sm:text-sm opacity-55 font-chinese leading-relaxed border-t border-white/[0.06] pt-2.5">
-                          {rawParagraphs[idx]}
+                  {translatedParagraphs.map((para, idx) => {
+                    const paraComments = commentsMap[`p_${idx}`] || [];
+                    const isSpeaking = activeSpeechIdx === idx && settings.ttsHighlightMode !== 'off';
+                    return (
+                      <div
+                        id={`para-${idx}`}
+                        key={idx}
+                        className={`p-4 sm:p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] ${
+                          isSpeaking ? 'ring-2 ring-amber-500/50 bg-amber-500/5' : ''
+                        }`}
+                      >
+                        <p itemProp="text" className="text-justify md:text-left font-medium">
+                          {para}
+                          {settings.paragraphComments !== false && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCommentPara(activeCommentPara === idx ? null : idx);
+                              }}
+                              className="inline-flex items-center gap-1 ml-2.5 px-2 py-0.5 rounded-full bg-white/[0.05] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 text-[11px] font-mono transition touch-active select-none align-middle"
+                              title="Paragraph notes & comments"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              {paraComments.length > 0 && <span>{paraComments.length}</span>}
+                            </button>
+                          )}
                         </p>
-                      )}
-                    </div>
-                  ))}
+                        {rawParagraphs[idx] && (
+                          <p className="mt-2.5 text-xs sm:text-sm opacity-55 font-chinese leading-relaxed border-t border-white/[0.06] pt-2.5">
+                            {rawParagraphs[idx]}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -615,7 +847,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                     <div className="text-center opacity-40 py-16">No content available</div>
                   ) : (
                     rawParagraphs.map((para, idx) => (
-                      <p key={idx} itemProp="text" className="indent-8 leading-loose tracking-wide">
+                      <p id={`para-${idx}`} key={idx} itemProp="text" className="indent-8 leading-loose tracking-wide">
                         {para}
                       </p>
                     ))
@@ -668,8 +900,116 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               )}
             </button>
           </footer>
+
+          {/* Chapter Comments Section (Standard Mode: "Full comment section with all comments visible") */}
+          {!settings.infiniteScrollEnabled && (
+            <section
+              id="chapter-comments"
+              className="mt-16 pt-10 border-t border-white/[0.08] space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100">
+                      Chapter Comments ({chapterComments.length})
+                    </h3>
+                    <p className="text-[11px] text-slate-400">Join the discussion with fellow readers</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Add Comment Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#14161e] border border-white/[0.08] space-y-3 shadow-md">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Your reader name (optional)"
+                    value={newCommentAuthor}
+                    onChange={(e) => setNewCommentAuthor(e.target.value)}
+                    className="w-full sm:w-64 px-3.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="relative">
+                  <textarea
+                    rows={3}
+                    placeholder="What did you think of this chapter?"
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    className="w-full p-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-slate-200 focus:outline-none focus:border-amber-500 resize-none leading-relaxed"
+                  />
+                </div>
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddChapterComment}
+                    disabled={!newCommentText.trim()}
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs transition disabled:opacity-40 flex items-center gap-2 shadow-lg shadow-amber-500/20 touch-active"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Post Comment</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Comments List */}
+              <div className="space-y-3">
+                {chapterComments.map((c) => (
+                  <div
+                    key={c.id}
+                    className="p-4 rounded-2xl bg-[#13151b] border border-white/[0.06] space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-500/30 to-amber-600/30 text-amber-300 font-bold flex items-center justify-center text-xs border border-amber-500/20">
+                          {c.author.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-slate-200">{c.author}</span>
+                        <span className="text-[10px] text-slate-500">• {c.timestamp}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleLikeChapterComment(c.id)}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] text-slate-400 hover:text-rose-400 transition touch-active"
+                      >
+                        <Heart className="w-3.5 h-3.5" />
+                        <span className="font-mono text-[11px]">{c.likes || 0}</span>
+                      </button>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed pl-9">{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </article>
+
+      {/* ── Floating Comment Button (Matches Screenshot 6) ── */}
+      <button
+        type="button"
+        onClick={() => {
+          const el = document.getElementById('chapter-comments');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth' });
+          } else if (onUpdateSettings) {
+            onUpdateSettings({ paragraphComments: !settings.paragraphComments });
+          }
+        }}
+        className={`fixed right-4 sm:right-6 z-30 w-12 h-12 rounded-full bg-[#181a24]/90 hover:bg-[#222533] backdrop-blur-md border border-white/[0.12] text-slate-300 hover:text-amber-400 flex items-center justify-center shadow-2xl shadow-black/60 transition-all duration-300 touch-active gpu-layer ${
+          controlsVisible ? 'bottom-20 sm:bottom-6' : 'bottom-6'
+        }`}
+        title="Chapter Comments"
+      >
+        <MessageSquare className="w-5 h-5" />
+        {totalCommentCount > 0 && (
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-black font-bold text-[10px] shadow">
+            {totalCommentCount}
+          </span>
+        )}
+      </button>
 
       {/* ── Autoplay Popup Menu (Matches Image 2 Exactly!) ── */}
       {autoplayMenuOpen && (
@@ -694,6 +1034,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             {/* Item 1: Auto Scroll */}
             <div
               onClick={() => {
+                if (onUpdateSettings) onUpdateSettings({ autoplayMode: 'scroll' });
                 setIsReadingAloud(false);
                 setIsAutoScrolling(!isAutoScrolling);
                 setAutoplayMenuOpen(false);
@@ -741,6 +1082,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             {/* Item 2: Read Aloud */}
             <div
               onClick={() => {
+                if (onUpdateSettings) onUpdateSettings({ autoplayMode: 'readaloud' });
                 if (isReadingAloud) {
                   stopAllAutoplay();
                 } else {
@@ -785,7 +1127,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       {/* ── Floating Mobile Bar (Matches Image 1 Exactly!) ── */}
       <nav
         aria-label="Floating Reader Navigation"
-        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw] transition-all duration-300 ease-in-out ${
+        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw] transition-all duration-300 ease-in-out gpu-layer ${
           controlsVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : 'translate-y-28 opacity-0 pointer-events-none'

@@ -781,6 +781,24 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
           handleSelectChapter(chapters[currIdx - 1].id);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+      } else if (e.key === 'Escape') {
+        setIsReaderSettingsOpen(false);
+        setIsDrawerOpen(false);
+        setIsAISettingsOpen(false);
+        setIsGlossaryOpen(false);
+        setIsImportOpen(false);
+        setIsExportOpen(false);
+        setIsAuthOpen(false);
+      } else if (e.key === 'd' || e.key === 'D') {
+        const modeOrder: any[] = ['english', 'bilingual', 'raw'];
+        const curIdx = modeOrder.indexOf(readerSettings.viewMode);
+        const nextMode = modeOrder[(curIdx + 1) % modeOrder.length];
+        handleSaveSettings(translationSettings, { ...readerSettings, viewMode: nextMode });
+      } else if (e.key === 'h' || e.key === 'H') {
+        handleSaveSettings(translationSettings, {
+          ...readerSettings,
+          hideHeaderInReader: !readerSettings.hideHeaderInReader
+        });
       } else if (e.key === 'f' || e.key === 'F') {
         const fontOrder: any[] = [
           'georgia',

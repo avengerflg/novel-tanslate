@@ -36,8 +36,8 @@
 /* Reader Themes (KaynScans schema: default, dark, gray, sepia, light, white) */
 .theme-default,
 .theme-oled {
-  background-color: #0c0d10;
-  color: #e5e7eb;
+  background-color: #0c0d10 !important;
+  color: #e5e7eb !important;
 }
 .theme-default .reader-card,
 .theme-oled .reader-card {
@@ -47,8 +47,8 @@
 }
 
 .theme-dark {
-  background-color: #12141a;
-  color: #e2e8f0;
+  background-color: #12141a !important;
+  color: #e2e8f0 !important;
 }
 .theme-dark .reader-card {
   background-color: #1a1d26;
@@ -57,8 +57,8 @@
 }
 
 .theme-gray {
-  background-color: #1e2029;
-  color: #e2e8f0;
+  background-color: #1e2029 !important;
+  color: #e2e8f0 !important;
 }
 .theme-gray .reader-card {
   background-color: #262933;
@@ -67,33 +67,99 @@
 }
 
 .theme-sepia {
-  background-color: #f4ecd8;
-  color: #38271d;
+  background-color: #f4ecd8 !important;
+  color: #38271d !important;
+}
+.theme-sepia h1,
+.theme-sepia .reader-article p,
+.theme-sepia .reader-title {
+  color: #2c1e14 !important;
 }
 .theme-sepia .reader-card {
   background-color: #fbf6ec;
   border-color: #e2d3bb;
   color: #38271d;
 }
+.theme-sepia header {
+  background-color: rgba(244, 236, 216, 0.92) !important;
+  border-color: #dfc49e !important;
+  color: #38271d !important;
+}
+.theme-sepia header span,
+.theme-sepia header p {
+  color: #38271d !important;
+}
+.theme-sepia nav[aria-label="Floating Reader Navigation"] {
+  background-color: rgba(235, 224, 201, 0.95) !important;
+  border-color: #d6bf99 !important;
+  color: #38271d !important;
+}
+.theme-sepia nav[aria-label="Floating Reader Navigation"] button {
+  color: #4a3427 !important;
+}
 
 .theme-light {
-  background-color: #faf9f5;
-  color: #1a1a1a;
+  background-color: #faf9f5 !important;
+  color: #1a1a1a !important;
+}
+.theme-light h1,
+.theme-light .reader-article p,
+.theme-light .reader-title {
+  color: #1a1a1a !important;
 }
 .theme-light .reader-card {
   background-color: #ffffff;
   border-color: #e5e5e5;
   color: #1a1a1a;
 }
+.theme-light header {
+  background-color: rgba(250, 249, 245, 0.92) !important;
+  border-color: #e2e8f0 !important;
+  color: #1a1a1a !important;
+}
+.theme-light header span,
+.theme-light header p {
+  color: #1a1a1a !important;
+}
+.theme-light nav[aria-label="Floating Reader Navigation"] {
+  background-color: rgba(245, 244, 239, 0.96) !important;
+  border-color: #cbd5e1 !important;
+  color: #1a1a1a !important;
+}
+.theme-light nav[aria-label="Floating Reader Navigation"] button {
+  color: #334155 !important;
+}
 
 .theme-white {
-  background-color: #ffffff;
-  color: #000000;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+.theme-white h1,
+.theme-white .reader-article p,
+.theme-white .reader-title {
+  color: #000000 !important;
 }
 .theme-white .reader-card {
   background-color: #f8fafc;
   border-color: #e2e8f0;
   color: #000000;
+}
+.theme-white header {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: #e2e8f0 !important;
+  color: #000000 !important;
+}
+.theme-white header span,
+.theme-white header p {
+  color: #000000 !important;
+}
+.theme-white nav[aria-label="Floating Reader Navigation"] {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: #cbd5e1 !important;
+  color: #000000 !important;
+}
+.theme-white nav[aria-label="Floating Reader Navigation"] button {
+  color: #1e293b !important;
 }
 
 /* Font classes matching KaynScans 9-font panel */
@@ -134,5 +200,30 @@
 }
 .modal-enter { animation: modalFadeIn 0.2s ease both; }
 
-/* Touch-friendly active states */
-.touch-active:active { transform: scale(0.97); opacity: 0.9; }
+/* Touch-friendly active states & 0ms tap delay */
+.touch-active {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-active:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* GPU-accelerated smooth transitions */
+.gpu-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Fast tap response across all interactive elements */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Smooth kinetic scrolling */
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
