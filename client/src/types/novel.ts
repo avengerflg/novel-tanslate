@@ -35,6 +35,7 @@ export interface Novel {
   author?: string;
   description?: string;
   genre: 'xianxia' | 'wuxia' | 'urban' | 'litrpg' | 'romance' | 'general';
+  coverUrl?: string;
   sourceUrl?: string;
   currentChapterId?: string;
   chapterIds: string[];

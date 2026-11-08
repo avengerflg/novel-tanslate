@@ -25,6 +25,9 @@ import {
 } from './utils/storage';
 import { Navbar } from './components/Navbar';
 import { ReaderView } from './components/ReaderView';
+import { NovelDetailView } from './components/NovelDetailView';
+import { LibraryView } from './components/LibraryView';
+import { BottomNav } from './components/BottomNav';
 import { ChapterDrawer } from './components/ChapterDrawer';
 import { ImportModal } from './components/ImportModal';
 import { GlossaryModal } from './components/GlossaryModal';
@@ -35,6 +38,9 @@ import { AuthModal } from './components/AuthModal';
 import { BookOpen, Sparkles, Upload, UserCheck, LogIn, Plus, Trash2, BookPlus } from 'lucide-react';
 
 export const App: React.FC = () => {
+  // Navigation / View mode: 'detail' (KaynScans novel landing) | 'reader' (reading screen) | 'library' (all novels)
+  const [activeView, setActiveView] = useState<'detail' | 'reader' | 'library'>('detail');
+
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -170,9 +176,10 @@ export const App: React.FC = () => {
     const activeChap =
       novelChapters.find((c) => c.id === novel.currentChapterId) || novelChapters[0];
     setCurrentChapter(activeChap || null);
+    setActiveView('detail');
   };
 
-  // Switch chapter
+  // Switch chapter & jump to reader
   const handleSelectChapter = async (chapterId: string) => {
     const chapter = chapters.find((c) => c.id === chapterId);
     if (!chapter || !currentNovel) return;
@@ -181,6 +188,7 @@ export const App: React.FC = () => {
     const updatedNovel = { ...currentNovel, currentChapterId: chapter.id, updatedAt: Date.now() };
     setCurrentNovel(updatedNovel);
     await saveUserNovel(updatedNovel);
+    setActiveView('reader');
   };
 
   // Translate single chapter
@@ -782,24 +790,26 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
   ]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100 font-sans">
-      {/* Top Navbar */}
-      <Navbar
-        novels={novels}
-        currentNovel={currentNovel}
-        currentChapter={currentChapter}
-        glossaryCount={glossaryItems.length}
-        currentUser={currentUser}
-        onSelectNovel={handleSelectNovel}
-        onOpenImport={() => setIsImportOpen(true)}
-        onOpenDrawer={() => setIsDrawerOpen(true)}
-        onOpenGlossary={() => setIsGlossaryOpen(true)}
-        onOpenExport={() => setIsExportOpen(true)}
-        onOpenReaderSettings={() => setIsReaderSettingsOpen(true)}
-        onOpenAISettings={() => setIsAISettingsOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onLogout={handleLogout}
-      />
+    <div className="min-h-screen flex flex-col bg-[#0a0b0e] text-slate-100 font-sans">
+      {/* Show top Navbar in detail/library modes */}
+      {activeView !== 'reader' && (
+        <Navbar
+          novels={novels}
+          currentNovel={currentNovel}
+          currentChapter={currentChapter}
+          glossaryCount={glossaryItems.length}
+          currentUser={currentUser}
+          onSelectNovel={handleSelectNovel}
+          onOpenImport={() => setIsImportOpen(true)}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
+          onOpenGlossary={() => setIsGlossaryOpen(true)}
+          onOpenExport={() => setIsExportOpen(true)}
+          onOpenReaderSettings={() => setIsReaderSettingsOpen(true)}
+          onOpenAISettings={() => setIsAISettingsOpen(true)}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col">
@@ -812,7 +822,7 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
               DaoReader
             </h2>
             <p className="text-sm sm:text-base text-slate-400 max-w-md mb-8 leading-relaxed">
-              Read raw Chinese web novels in fluid, natural English powered by DeepSeek and Gemini. With instant glossary memory, character consistency, and EPUB export.
+              Read raw Chinese web novels in natural English powered by DeepSeek and Gemini. With persistent translation memory, character consistency, and EPUB export.
             </p>
             <button
               onClick={() => setIsAuthOpen(true)}
@@ -839,45 +849,30 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
               <span>Add Your First Novel</span>
             </button>
           </div>
-        ) : currentNovel && (!currentChapter || chapters.length === 0) ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto animate-in fade-in">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-4 flex items-center justify-center shadow-lg">
-              <BookOpen className="w-8 h-8" />
-            </div>
-            <h2 className="text-xl font-bold mb-1 text-slate-100">
-              {currentNovel.translatedTitle || currentNovel.title}
-            </h2>
-            {currentNovel.translatedTitle && (
-              <p className="text-xs text-slate-400 font-chinese mb-3">{currentNovel.title}</p>
-            )}
-            <p className="text-xs text-amber-300/80 mb-6 max-w-sm leading-relaxed">
-              This novel does not have any chapters yet. Add your first chapter or restore sample cultivation chapters to test the AI reader!
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <button
-                onClick={() => setIsImportOpen(true)}
-                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition touch-active"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Add / Scrape Chapter</span>
-              </button>
-              <button
-                onClick={handleRestoreSampleChapters}
-                className="px-4 py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.1] text-xs font-semibold flex items-center justify-center gap-2 transition touch-active"
-              >
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Restore Sample Chapters</span>
-              </button>
-              <button
-                onClick={() => handleDeleteNovel(currentNovel.id)}
-                className="px-4 py-3 rounded-2xl text-red-400 hover:bg-red-500/10 border border-red-500/20 text-xs transition flex items-center justify-center gap-1.5 touch-active"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete Novel</span>
-              </button>
-            </div>
-          </div>
-        ) : currentNovel && currentChapter ? (
+        ) : activeView === 'library' ? (
+          <LibraryView
+            novels={novels}
+            currentNovel={currentNovel}
+            onSelectNovel={handleSelectNovel}
+            onOpenImport={() => setIsImportOpen(true)}
+            onDeleteNovel={handleDeleteNovel}
+          />
+        ) : activeView === 'detail' && currentNovel ? (
+          <NovelDetailView
+            novel={currentNovel}
+            chapters={chapters}
+            currentChapter={currentChapter}
+            onReadChapter={(chapterId) => {
+              handleSelectChapter(chapterId);
+            }}
+            onOpenLibrary={() => setActiveView('library')}
+            onOpenGlossary={() => setIsGlossaryOpen(true)}
+            onOpenExport={() => setIsExportOpen(true)}
+            onOpenImport={() => setIsImportOpen(true)}
+            onOpenDrawer={() => setIsDrawerOpen(true)}
+            onFetchNextWebChapter={handleFetchNextWebChapter}
+          />
+        ) : activeView === 'reader' && currentNovel && currentChapter ? (
           <ReaderView
             novel={currentNovel}
             chapter={currentChapter}
@@ -886,6 +881,7 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
             translationSettings={translationSettings}
             onTranslateChapter={handleTranslateChapter}
             onNavigateChapter={handleSelectChapter}
+            onBackToDetail={() => setActiveView('detail')}
             onFetchNextWebChapter={handleFetchNextWebChapter}
             onAddGlossaryItems={handleAddDiscoveredTerms}
             discoveredTerms={discoveredTerms}
@@ -895,8 +891,29 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
             onOpenReaderSettings={() => setIsReaderSettingsOpen(true)}
             onOpenAISettings={() => setIsAISettingsOpen(true)}
           />
-        ) : null}
+        ) : (
+          <LibraryView
+            novels={novels}
+            currentNovel={currentNovel}
+            onSelectNovel={handleSelectNovel}
+            onOpenImport={() => setIsImportOpen(true)}
+            onDeleteNovel={handleDeleteNovel}
+          />
+        )}
       </main>
+
+      {/* Bottom Nav Bar in Detail/Library screens on mobile (Kayn Scans Image 4) */}
+      {currentUser && activeView !== 'reader' && (
+        <BottomNav
+          activeTab={activeView === 'library' ? 'library' : 'detail'}
+          hasActiveNovel={Boolean(currentNovel)}
+          currentUser={currentUser}
+          onTabChange={(tab) => setActiveView(tab)}
+          onOpenSearch={() => setIsDrawerOpen(true)}
+          onOpenImport={() => setIsImportOpen(true)}
+          onOpenAuth={() => (currentUser ? handleLogout() : setIsAuthOpen(true))}
+        />
+      )}
 
       {/* Slide-out Table of Contents Drawer */}
       <ChapterDrawer

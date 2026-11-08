@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Chapter, Novel, ReaderSettings, TranslationSettings, GlossaryItem } from '../types/novel';
 import {
   Sparkles,
@@ -14,7 +14,12 @@ import {
   Sliders,
   List,
   Settings,
-  BookOpen
+  Play,
+  Pause,
+  Languages,
+  Scroll,
+  Volume2,
+  X
 } from 'lucide-react';
 
 interface ReaderViewProps {
@@ -25,6 +30,7 @@ interface ReaderViewProps {
   translationSettings: TranslationSettings;
   onTranslateChapter: (chapterId: string) => Promise<void>;
   onNavigateChapter: (chapterId: string) => void;
+  onBackToDetail?: () => void;
   onFetchNextWebChapter?: (nextUrl: string) => Promise<void>;
   onAddGlossaryItems?: (items: GlossaryItem[]) => void;
   discoveredTerms?: GlossaryItem[];
@@ -43,6 +49,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   translationSettings,
   onTranslateChapter,
   onNavigateChapter,
+  onBackToDetail,
   onFetchNextWebChapter,
   onAddGlossaryItems,
   discoveredTerms = [],
@@ -58,7 +65,27 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [scrollProgress, setScrollProgress] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Live timer for active translation
+  // Autoplay popup & execution state (matches Image 2)
+  const [autoplayMenuOpen, setAutoplayMenuOpen] = useState(false);
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+  const [scrollSpeed, setScrollSpeed] = useState<number>(1); // pixels per frame
+  const [isReadingAloud, setIsReadingAloud] = useState(false);
+  const [activeSpeechIdx, setActiveSpeechIdx] = useState<number>(-1);
+
+  const autoScrollRef = useRef<number | null>(null);
+
+  // Split content into clean paragraphs
+  const rawParagraphs = (chapter.rawChineseContent || '')
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  const translatedParagraphs = (chapter.translatedContent || '')
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  // Translation timer
   useEffect(() => {
     let timer: any;
     if (isTranslating) {
@@ -74,7 +101,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     };
   }, [isTranslating]);
 
-  // Scroll percentage tracker for reading progress
+  // Scroll percentage tracker
   useEffect(() => {
     const handleScroll = () => {
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -87,7 +114,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fullscreen change listener
+  // Fullscreen listener
   useEffect(() => {
     const onFsChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
@@ -95,6 +122,93 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
+
+  // Auto-scroll loop
+  useEffect(() => {
+    if (isAutoScrolling) {
+      let lastTime = performance.now();
+      const step = (now: number) => {
+        const delta = (now - lastTime) / 16.6;
+        lastTime = now;
+        window.scrollBy(0, scrollSpeed * delta);
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 10) {
+          setIsAutoScrolling(false);
+          return;
+        }
+        autoScrollRef.current = requestAnimationFrame(step);
+      };
+      autoScrollRef.current = requestAnimationFrame(step);
+    } else if (autoScrollRef.current) {
+      cancelAnimationFrame(autoScrollRef.current);
+      autoScrollRef.current = null;
+    }
+    return () => {
+      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
+    };
+  }, [isAutoScrolling, scrollSpeed]);
+
+  // Read Aloud feature using Web Speech API
+  useEffect(() => {
+    if (!isReadingAloud) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setActiveSpeechIdx(-1);
+    }
+  }, [isReadingAloud]);
+
+  const startReadAloud = () => {
+    if (!('speechSynthesis' in window)) {
+      alert('Speech synthesis is not supported on this browser.');
+      return;
+    }
+    window.speechSynthesis.cancel();
+    setIsReadingAloud(true);
+    setAutoplayMenuOpen(false);
+
+    const paragraphs =
+      chapter.status === 'translated' && translatedParagraphs.length > 0
+        ? translatedParagraphs
+        : rawParagraphs;
+
+    let currentIdx = 0;
+
+    const speakNext = () => {
+      if (currentIdx >= paragraphs.length) {
+        setIsReadingAloud(false);
+        setActiveSpeechIdx(-1);
+        return;
+      }
+
+      setActiveSpeechIdx(currentIdx);
+      const utterance = new SpeechSynthesisUtterance(paragraphs[currentIdx]);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = chapter.status === 'translated' ? 'en-US' : 'zh-CN';
+
+      utterance.onend = () => {
+        currentIdx++;
+        speakNext();
+      };
+
+      utterance.onerror = () => {
+        setIsReadingAloud(false);
+        setActiveSpeechIdx(-1);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    speakNext();
+  };
+
+  const stopAllAutoplay = () => {
+    setIsAutoScrolling(false);
+    setIsReadingAloud(false);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -108,17 +222,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const currentIndex = chapters.findIndex((c) => c.id === chapter.id);
   const prevChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
   const nextChapter = currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
-
-  // Split into paragraphs
-  const rawParagraphs = (chapter.rawChineseContent || '')
-    .split(/\n+/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-
-  const translatedParagraphs = (chapter.translatedContent || '')
-    .split(/\n+/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
 
   // Responsive max width style
   const maxWidthClass =
@@ -141,6 +244,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       : 'font-sans';
 
   const handleNextClick = async () => {
+    stopAllAutoplay();
     if (nextChapter) {
       onNavigateChapter(nextChapter.id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -156,6 +260,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   };
 
   const handlePrevClick = () => {
+    stopAllAutoplay();
     if (prevChapter) {
       onNavigateChapter(prevChapter.id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -163,209 +268,151 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   };
 
   return (
-    <div className={`min-h-[100dvh] pb-28 sm:pb-36 transition-colors duration-200 theme-${settings.theme} relative`}>
+    <div className={`min-h-[100dvh] pb-32 sm:pb-36 transition-colors duration-200 theme-${settings.theme} relative bg-[#0c0d10]`}>
+      
       {/* Top Reading Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-black/10 dark:bg-white/10 z-50 pointer-events-none">
+      <div className="fixed top-0 left-0 right-0 h-1 bg-white/[0.06] z-50 pointer-events-none">
         <div
-          className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300 transition-all duration-150"
+          className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 transition-all duration-150"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
 
-      {/* Semantic Article Wrapper */}
+      {/* ── Top Header (Exact Kayn Scans Image 1 Style) ── */}
+      <header className="sticky top-0 z-40 bg-[#0c0d10]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none">
+        
+        {/* Left: Circular Back Button `<` */}
+        <button
+          onClick={onBackToDetail || (() => window.history.back())}
+          className="w-10 h-10 rounded-full bg-[#181a20] hover:bg-[#22252e] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-md touch-active shrink-0"
+          title="Back to Novel Details"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        {/* Center Title: "Ch. 1 / 390: Mud Monkey" */}
+        <div className="flex-1 min-w-0 text-center px-2">
+          <p className="text-xs sm:text-sm font-semibold truncate text-slate-200">
+            <span className="text-amber-400">Ch. {chapter.index}</span>
+            <span className="text-slate-500 font-normal"> / {chapters.length}</span>
+            <span className="text-slate-400">: </span>
+            <span>{chapter.translatedTitle || chapter.chineseTitle}</span>
+          </p>
+        </div>
+
+        {/* Right: Circular Menu Button `≡` */}
+        <button
+          onClick={onOpenDrawer}
+          className="w-10 h-10 rounded-full bg-[#181a20] hover:bg-[#22252e] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-md touch-active shrink-0"
+          title="Table of Contents"
+        >
+          <List className="w-5 h-5" />
+        </button>
+      </header>
+
+      {/* ── Main Prose Content ── */}
       <article
         id="chapter-article"
         role="article"
-        className="chapter-content article hentry entry-content reader-article mx-auto px-4 sm:px-6 md:px-10 pt-6 sm:pt-12"
+        className="chapter-content article hentry entry-content reader-article mx-auto px-4 sm:px-8 md:px-12 pt-8 sm:pt-14"
         itemScope
         itemType="http://schema.org/Article"
       >
         <div className={`mx-auto ${maxWidthClass}`}>
-          {/* Chapter Header */}
-          <header className="entry-header mb-8 sm:mb-12 pb-6 sm:pb-8 border-b border-black/10 dark:border-white/10 text-center">
-            {/* Novel Title Subtitle */}
-            <p className="text-xs sm:text-sm uppercase tracking-widest font-semibold opacity-60 mb-2 font-cinzel">
-              {novel.translatedTitle || novel.title}
-            </p>
-
-            {/* Main Chapter Title */}
-            <h1
-              className="entry-title text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight mb-2 leading-tight"
-              itemProp="headline"
-            >
+          
+          {/* Chapter Main Title Display (Kayn Scans Image 1) */}
+          <div className="text-center mb-10 sm:mb-14">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-100 leading-tight">
               {chapter.translatedTitle || chapter.chineseTitle}
             </h1>
-
-            {/* Original Chinese Subtitle */}
+            <p className="text-sm sm:text-base text-slate-400 mt-2 font-medium">
+              Chapter {chapter.index}: {chapter.translatedTitle || chapter.chineseTitle}
+            </p>
             {chapter.translatedTitle && (
-              <p className="text-sm sm:text-base opacity-50 font-chinese tracking-wide mb-4">
+              <p className="text-xs sm:text-sm text-slate-500 font-chinese mt-1">
                 {chapter.chineseTitle}
               </p>
             )}
+          </div>
 
-            {/* Metadata Pills */}
-            <div className="entry-meta flex items-center justify-center flex-wrap gap-2 text-xs opacity-60 mt-2">
-              {novel.author && (
-                <span className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5" itemProp="author">
-                  Author: {novel.author}
-                </span>
-              )}
-              <span className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
-                Ch. {chapter.index} of {chapters.length}
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 capitalize" itemProp="genre">
-                {novel.genre}
-              </span>
-            </div>
+          {/* Quick Translate Button if not translated */}
+          {chapter.status !== 'translated' && (
+            <div className="mb-10 p-6 rounded-3xl bg-amber-500/10 border border-amber-500/25 text-center space-y-4">
+              <div>
+                <p className="text-base font-bold text-amber-300">
+                  {chapter.status === 'error' ? 'Translation Error' : 'Raw Chinese Chapter'}
+                </p>
+                <p className="text-xs text-amber-200/70 mt-1 max-w-md mx-auto">
+                  Translate this chapter using {translationSettings.provider.toUpperCase()} with genre terminology memory.
+                </p>
+              </div>
 
-            {/* Action Bar */}
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
-              {chapter.status !== 'translated' && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onTranslateChapter(chapter.id)}
-                    disabled={isTranslating}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/25 flex items-center gap-2 transition disabled:opacity-50 touch-active"
-                  >
-                    {isTranslating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Translating ({elapsedSeconds}s)...</span>
-                      </>
-                    ) : chapter.status === 'error' ? (
-                      <>
-                        <RefreshCw className="w-4 h-4" />
-                        <span>Retry Translation ({translationSettings.provider.toUpperCase()})</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Translate Chapter ({translationSettings.provider.toUpperCase()})</span>
-                      </>
-                    )}
-                  </button>
-
-                  {onOpenAISettings && (
-                    <button
-                      type="button"
-                      onClick={onOpenAISettings}
-                      className="px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-amber-500 dark:text-amber-400 text-xs font-semibold flex items-center gap-1.5 transition touch-active"
-                      title="AI Settings"
-                    >
-                      <Settings className="w-4 h-4" />
-                      <span className="hidden sm:inline">Settings</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {chapter.status === 'translated' && (
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 text-xs font-semibold flex items-center gap-1.5 shadow-xs">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Translated</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onTranslateChapter(chapter.id)}
-                    disabled={isTranslating}
-                    className="px-3.5 py-2 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-medium flex items-center gap-1.5 transition opacity-75 hover:opacity-100 touch-active"
-                    title="Re-translate with latest glossary"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isTranslating ? 'animate-spin' : ''}`} />
-                    <span>Re-translate</span>
-                  </button>
-                  {onOpenAISettings && (
-                    <button
-                      type="button"
-                      onClick={onOpenAISettings}
-                      className="p-2 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-xs flex items-center gap-1 transition opacity-75 hover:opacity-100 text-amber-500 dark:text-amber-400 touch-active"
-                      title="AI & API Settings"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Quick Navigation / Next Web Chapter Fetch */}
-              {nextChapter ? (
+              <div className="flex flex-wrap items-center justify-center gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    onNavigateChapter(nextChapter.id);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="px-3.5 py-2 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold flex items-center gap-1.5 transition text-amber-500 dark:text-amber-400 touch-active"
+                  onClick={() => onTranslateChapter(chapter.id)}
+                  disabled={isTranslating}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-sm shadow-xl shadow-amber-500/20 flex items-center gap-2 transition disabled:opacity-50 touch-active"
                 >
-                  <span>Ch. {nextChapter.index}</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              ) : chapter.nextUrl && onFetchNextWebChapter ? (
-                <button
-                  type="button"
-                  onClick={handleNextClick}
-                  disabled={isFetchingNext}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-500 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 touch-active"
-                >
-                  {isFetchingNext ? (
+                  {isTranslating ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Fetching Ch. {chapter.index + 1}...</span>
+                      <span>Translating ({elapsedSeconds}s)...</span>
                     </>
                   ) : (
                     <>
-                      <Globe className="w-4 h-4" />
-                      <span>+ Fetch Ch. {chapter.index + 1}</span>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Translate Chapter</span>
                     </>
                   )}
                 </button>
-              ) : null}
 
-              {/* Fullscreen Button */}
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="hidden sm:flex px-3 py-2 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-xs items-center gap-1.5 transition opacity-65 hover:opacity-100 touch-active"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Reading Mode'}
-              >
-                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                <span>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
-              </button>
-
-              {chapter.sourceUrl && (
-                <a
-                  href={chapter.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-2 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-xs flex items-center gap-1.5 transition opacity-65 hover:opacity-100"
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>Source Web</span>
-                </a>
-              )}
+                {onOpenAISettings && (
+                  <button
+                    type="button"
+                    onClick={onOpenAISettings}
+                    className="px-4 py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-amber-400 border border-white/[0.1] text-xs font-semibold flex items-center gap-1.5 transition touch-active"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>API Settings</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </header>
+          )}
+
+          {/* Translating Skeleton */}
+          {isTranslating && (
+            <div className="my-12 p-8 sm:p-12 rounded-3xl border border-dashed border-amber-500/30 bg-amber-500/5 text-center space-y-4 animate-pulse">
+              <Loader2 className="w-10 h-10 text-amber-400 animate-spin mx-auto" />
+              <div>
+                <p className="font-bold text-base sm:text-lg">
+                  Translating with {translationSettings.provider.toUpperCase()} ({elapsedSeconds}s elapsed)...
+                </p>
+                <p className="text-xs sm:text-sm opacity-60 mt-1.5 max-w-md mx-auto">
+                  Applying genre memory, resolving pronouns, and generating English novel prose.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Discovered Entities Banner */}
           {discoveredTerms && discoveredTerms.length > 0 && onAddGlossaryItems && (
             <div className="mb-8 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in slide-in-from-top">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
                   <p className="text-xs sm:text-sm font-bold text-amber-300">
-                    {discoveredTerms.length} New Proper Nouns Discovered
+                    {discoveredTerms.length} New Glossary Terms Found
                   </p>
                   <p className="text-xs text-amber-200/70 mt-0.5">
-                    Identified characters/terms (e.g.{' '}
-                    {discoveredTerms.slice(0, 2).map((t) => `${t.original} → ${t.translation}`).join(', ')}). Add to glossary memory?
+                    {discoveredTerms.slice(0, 2).map((t) => `${t.original} → ${t.translation}`).join(', ')}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => onAddGlossaryItems(discoveredTerms)}
@@ -386,60 +433,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </div>
           )}
 
-          {/* Translation Error Banner */}
-          {chapter.status === 'error' && !isTranslating && (
-            <div className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm font-bold text-red-300">
-                    Translation Incomplete or Failed
-                  </p>
-                  <p className="text-xs text-red-200/80 mt-0.5 max-w-md">
-                    {chapter.errorMessage || 'The AI service encountered an issue. You can retry or verify your API settings.'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onTranslateChapter(chapter.id)}
-                  className="px-3.5 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-black font-bold text-xs flex items-center gap-1.5 transition touch-active"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Retry</span>
-                </button>
-                {onOpenAISettings && (
-                  <button
-                    type="button"
-                    onClick={onOpenAISettings}
-                    className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-amber-400 text-xs font-semibold border border-white/[0.1] transition touch-active"
-                  >
-                    API Settings
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Translating Skeleton Progress */}
-          {isTranslating && (
-            <div className="my-12 p-8 sm:p-12 rounded-3xl border border-dashed border-amber-500/30 bg-amber-500/5 text-center space-y-4 animate-pulse">
-              <Loader2 className="w-10 h-10 text-amber-400 animate-spin mx-auto" />
-              <div>
-                <p className="font-bold text-base sm:text-lg">
-                  Translating with {translationSettings.provider.toUpperCase()} ({elapsedSeconds}s elapsed)...
-                </p>
-                <p className="text-xs sm:text-sm opacity-60 mt-1.5 max-w-md mx-auto">
-                  Applying genre memory, resolving character pronouns, and refining English novel prose.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Article Prose Content */}
+          {/* Prose Content */}
           {!isTranslating && (
             <div
               className={`entry-content ${fontClass}`}
@@ -451,11 +445,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             >
               {/* Mode 1: English Only */}
               {settings.viewMode === 'english' && chapter.status === 'translated' && (
-                <div className="space-y-5 sm:space-y-6">
+                <div className="space-y-6 sm:space-y-7">
                   {translatedParagraphs.map((para, idx) => (
                     <div
                       key={idx}
-                      className="relative group rounded-xl transition"
+                      className={`relative group rounded-xl transition ${
+                        activeSpeechIdx === idx ? 'bg-amber-500/15 p-2 rounded-xl ring-1 ring-amber-500/40' : ''
+                      }`}
                       onMouseEnter={() => setHoveredIdx(idx)}
                       onMouseLeave={() => setHoveredIdx(null)}
                     >
@@ -464,16 +460,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                       </p>
 
                       {/* Tooltip with raw Chinese on hover */}
-                      {settings.showChineseOnHover &&
-                        hoveredIdx === idx &&
-                        rawParagraphs[idx] && (
-                          <div className="mt-2 p-3 rounded-2xl bg-black/90 backdrop-blur-md text-white text-xs sm:text-sm font-chinese leading-relaxed border border-white/10 shadow-2xl animate-in fade-in duration-150">
-                            <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1 tracking-wider">
-                              Original Chinese Source
-                            </span>
-                            {rawParagraphs[idx]}
-                          </div>
-                        )}
+                      {settings.showChineseOnHover && hoveredIdx === idx && rawParagraphs[idx] && (
+                        <div className="mt-2 p-3 rounded-2xl bg-[#14161d] text-white text-xs sm:text-sm font-chinese leading-relaxed border border-white/10 shadow-2xl animate-in fade-in">
+                          <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1 tracking-wider">
+                            Original Chinese
+                          </span>
+                          {rawParagraphs[idx]}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -485,13 +479,15 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                   {translatedParagraphs.map((para, idx) => (
                     <div
                       key={idx}
-                      className="p-4 sm:p-5 rounded-2xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02]"
+                      className={`p-4 sm:p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] ${
+                        activeSpeechIdx === idx ? 'ring-2 ring-amber-500/50 bg-amber-500/5' : ''
+                      }`}
                     >
                       <p itemProp="text" className="text-justify md:text-left font-medium">
                         {para}
                       </p>
                       {rawParagraphs[idx] && (
-                        <p className="mt-2.5 text-xs sm:text-sm opacity-55 font-chinese leading-relaxed border-t border-black/5 dark:border-white/5 pt-2.5">
+                        <p className="mt-2.5 text-xs sm:text-sm opacity-55 font-chinese leading-relaxed border-t border-white/[0.06] pt-2.5">
                           {rawParagraphs[idx]}
                         </p>
                       )}
@@ -500,14 +496,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 </div>
               )}
 
-              {/* Mode 3: Raw Chinese (or untranslated fallback) */}
+              {/* Mode 3: Raw Chinese */}
               {(settings.viewMode === 'raw' || chapter.status !== 'translated') && (
-                <div className="font-chinese space-y-4 sm:space-y-5 opacity-90">
+                <div className="font-chinese space-y-5 sm:space-y-6 opacity-90">
                   {rawParagraphs.length === 0 ? (
-                    <div className="text-center opacity-40 py-16 flex flex-col items-center gap-2">
-                      <BookOpen className="w-8 h-8" />
-                      <p>No content available</p>
-                    </div>
+                    <div className="text-center opacity-40 py-16">No content available</div>
                   ) : (
                     rawParagraphs.map((para, idx) => (
                       <p key={idx} itemProp="text" className="indent-8 leading-loose tracking-wide">
@@ -520,32 +513,32 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </div>
           )}
 
-          {/* Bottom Desktop Chapter Navigation */}
-          <footer className="mt-16 pt-8 border-t border-black/10 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          {/* Bottom Desktop Chapter Nav */}
+          <footer className="mt-16 pt-8 border-t border-white/[0.08] flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={handlePrevClick}
               disabled={!prevChapter}
-              className="w-full sm:w-auto px-5 py-3 rounded-2xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center gap-2 text-xs font-semibold transition disabled:opacity-30 disabled:pointer-events-none touch-active"
+              className="px-5 py-3 rounded-2xl bg-[#14161d] hover:bg-[#1a1d26] border border-white/[0.08] text-xs font-semibold text-slate-200 flex items-center gap-2 transition disabled:opacity-30 disabled:pointer-events-none touch-active"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Previous Chapter</span>
             </button>
 
-            <span className="text-xs opacity-50 font-mono">
-              Chapter {chapter.index} of {chapters.length} ({Math.round(scrollProgress)}%)
+            <span className="text-xs text-slate-500 font-mono">
+              {Math.round(scrollProgress)}% read
             </span>
 
             <button
               type="button"
               onClick={handleNextClick}
               disabled={!nextChapter && !chapter.nextUrl}
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold flex items-center justify-center gap-2 text-xs transition shadow-lg shadow-amber-500/20 disabled:opacity-30 disabled:pointer-events-none touch-active"
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 transition disabled:opacity-30 disabled:pointer-events-none touch-active"
             >
               {isFetchingNext ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Fetching Next Web Chapter...</span>
+                  <span>Fetching...</span>
                 </>
               ) : nextChapter ? (
                 <>
@@ -555,7 +548,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               ) : chapter.nextUrl ? (
                 <>
                   <Globe className="w-4 h-4" />
-                  <span>Fetch Next Chapter from Web</span>
+                  <span>Fetch Next Web Chapter</span>
                   <ChevronRight className="w-4 h-4" />
                 </>
               ) : (
@@ -566,65 +559,196 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       </article>
 
-      {/* ── Mobile Floating Bottom Bar (Modern Kindle/Apple Books aesthetic) ── */}
+      {/* ── Autoplay Popup Menu (Matches Image 2 Exactly!) ── */}
+      {autoplayMenuOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setAutoplayMenuOpen(false)}
+          />
+
+          {/* Autoplay Popup Card */}
+          <div className="relative w-full max-w-sm bg-[#16181f] border border-white/[0.1] rounded-3xl p-5 shadow-2xl shadow-black/80 z-10 modal-enter text-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-100">Autoplay</h3>
+              <button
+                onClick={() => setAutoplayMenuOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Item 1: Auto Scroll */}
+            <div
+              onClick={() => {
+                setIsReadingAloud(false);
+                setIsAutoScrolling(!isAutoScrolling);
+                setAutoplayMenuOpen(false);
+              }}
+              className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] flex items-center gap-3.5 cursor-pointer transition touch-active mb-2.5"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Scroll className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-100">Scroll</span>
+                  {isAutoScrolling && (
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">The page moves at your reading speed</p>
+              </div>
+            </div>
+
+            {/* Speed selector for Auto Scroll if active */}
+            {isAutoScrolling && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.02] border border-white/[0.06] mb-2.5 text-xs">
+                <span className="text-slate-400 font-medium">Scroll Speed</span>
+                <div className="flex items-center gap-1.5">
+                  {[0.5, 1, 1.5, 2.5].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setScrollSpeed(s)}
+                      className={`px-2 py-0.5 rounded-lg font-mono font-bold transition ${
+                        scrollSpeed === s
+                          ? 'bg-amber-500 text-black'
+                          : 'bg-white/[0.06] text-slate-300 hover:bg-white/[0.1]'
+                      }`}
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Item 2: Read Aloud */}
+            <div
+              onClick={() => {
+                if (isReadingAloud) {
+                  stopAllAutoplay();
+                } else {
+                  startReadAloud();
+                }
+              }}
+              className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] flex items-center gap-3.5 cursor-pointer transition touch-active"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Volume2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-100">Read aloud</span>
+                  {isReadingAloud && (
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full animate-pulse">
+                      Playing
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">A voice reads and the page follows</p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 mt-3.5 leading-relaxed">
+              Your choice is remembered. Press Autoplay at any time to change it.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating Mobile Bar (Matches Image 1 Exactly!) ── */}
       <nav
-        aria-label="Mobile Reading Bar"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-[#0d1117]/95 backdrop-blur-xl border-t border-white/[0.08] px-3 py-2 sm:hidden flex items-center justify-between safe-bottom shadow-2xl"
+        aria-label="Floating Reader Navigation"
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw]"
       >
-        {/* Prev Chapter */}
+        {/* 1. Prev Chapter `<` */}
         <button
           type="button"
           onClick={handlePrevClick}
           disabled={!prevChapter}
           aria-label="Previous Chapter"
-          className="p-3 rounded-xl text-slate-300 hover:text-white disabled:opacity-20 touch-active transition"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-white disabled:opacity-20 touch-active transition"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        {/* Center quick buttons */}
-        <div className="flex items-center gap-1.5">
-          {onOpenDrawer && (
-            <button
-              type="button"
-              onClick={onOpenDrawer}
-              className="px-3 py-2 rounded-xl bg-white/[0.06] border border-white/[0.08] text-xs font-semibold text-slate-200 flex items-center gap-1.5 touch-active transition"
-            >
-              <List className="w-4 h-4 text-amber-400" />
-              <span>Ch. {chapter.index} ({Math.round(scrollProgress)}%)</span>
-            </button>
+        {/* 2. Autoplay `▷` */}
+        <button
+          type="button"
+          onClick={() => setAutoplayMenuOpen(!autoplayMenuOpen)}
+          aria-label="Autoplay"
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition touch-active ${
+            isAutoScrolling || isReadingAloud
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
+              : 'text-slate-300 hover:text-amber-400 hover:bg-white/[0.06]'
+          }`}
+          title="Autoplay & Read Aloud"
+        >
+          {isAutoScrolling || isReadingAloud ? (
+            <Pause className="w-4 h-4 fill-current" />
+          ) : (
+            <Play className="w-4 h-4 fill-current ml-0.5" />
           )}
+        </button>
 
-          {onOpenReaderSettings && (
-            <button
-              type="button"
-              onClick={onOpenReaderSettings}
-              aria-label="Reading Appearance"
-              className="p-2.5 rounded-xl bg-white/[0.06] border border-white/[0.08] text-slate-300 touch-active transition"
-            >
-              <Sliders className="w-4 h-4" />
-            </button>
-          )}
+        {/* 3. Language / Display Mode `文/A` */}
+        <button
+          type="button"
+          onClick={() => {
+            const nextMode =
+              settings.viewMode === 'english'
+                ? 'bilingual'
+                : settings.viewMode === 'bilingual'
+                ? 'raw'
+                : 'english';
+            if (onOpenReaderSettings) {
+              onOpenReaderSettings();
+            }
+          }}
+          aria-label="Display Mode"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-amber-400 hover:bg-white/[0.06] transition touch-active"
+          title="Display Mode (English / Bilingual / Raw)"
+        >
+          <Languages className="w-4 h-4" />
+        </button>
 
-          {onOpenAISettings && (
-            <button
-              type="button"
-              onClick={onOpenAISettings}
-              aria-label="AI Settings"
-              className="p-2.5 rounded-xl bg-white/[0.06] border border-white/[0.08] text-amber-400 touch-active transition"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        {/* 4. Settings `⚙` */}
+        {onOpenReaderSettings && (
+          <button
+            type="button"
+            onClick={onOpenReaderSettings}
+            aria-label="Reading Settings"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-amber-400 hover:bg-white/[0.06] transition touch-active"
+            title="Appearance & Typography"
+          >
+            <Sliders className="w-4 h-4" />
+          </button>
+        )}
 
-        {/* Next Chapter */}
+        {/* 5. Chapters `≡` */}
+        {onOpenDrawer && (
+          <button
+            type="button"
+            onClick={onOpenDrawer}
+            aria-label="Table of Contents"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-amber-400 hover:bg-white/[0.06] transition touch-active"
+            title="Table of Contents"
+          >
+            <List className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* 6. Next Chapter `>` */}
         <button
           type="button"
           onClick={handleNextClick}
           disabled={!nextChapter && !chapter.nextUrl}
           aria-label="Next Chapter"
-          className="p-3 rounded-xl text-amber-400 hover:text-amber-300 disabled:opacity-20 touch-active transition"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-20 touch-active transition"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
