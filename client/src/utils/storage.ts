@@ -222,7 +222,7 @@ export function loadReaderSettings(): ReaderSettings {
 
   return {
     theme: 'default',
-    fontFamily: 'serif',
+    fontFamily: 'georgia',
     fontSize: 18,
     lineHeight: 1.8,
     maxWidth: 'medium',
@@ -230,8 +230,17 @@ export function loadReaderSettings(): ReaderSettings {
     showChineseOnHover: true,
     hideHeaderInReader: false,
     infiniteScrollEnabled: false,
-    ttsHighlightMode: 'sentence',
-    ttsRate: 1.0
+    paragraphComments: true,
+    autoUnlock: false,
+    autoplayMode: 'scroll',
+    scrollSpeedPreset: 'normal',
+    readingPaceWpm: 240,
+    ttsHighlightMode: 'paragraph',
+    ttsRate: 1.0,
+    followText: true,
+    scrollingBehavior: 'page',
+    readingLine: 'middle',
+    continueNextChapter: true
   };
 }
 

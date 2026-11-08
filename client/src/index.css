@@ -96,11 +96,16 @@
   color: #000000;
 }
 
-/* Font classes */
+/* Font classes matching KaynScans 9-font panel */
+.font-georgia { font-family: Georgia, Cambria, serif; }
 .font-merriweather { font-family: 'Merriweather', Georgia, serif; }
-.font-lexend { font-family: 'Lexend', system-ui, sans-serif; }
-.font-literata { font-family: 'Literata', Georgia, serif; }
 .font-lora { font-family: 'Lora', Georgia, serif; }
+.font-literata { font-family: 'Literata', Georgia, serif; }
+.font-sourceserif { font-family: 'Source Serif 4', Georgia, serif; }
+.font-lexend { font-family: 'Lexend', system-ui, sans-serif; }
+.font-sans { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+.font-opensans { font-family: 'Open Sans', system-ui, sans-serif; }
+.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
 /* Slim custom scrollbars */
 ::-webkit-scrollbar { width: 4px; height: 4px; }

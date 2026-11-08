@@ -44,7 +44,17 @@ export interface Novel {
 }
 
 export type ReaderTheme = 'default' | 'dark' | 'gray' | 'sepia' | 'light' | 'white';
-export type ReaderFont = 'serif' | 'merriweather' | 'lora' | 'literata' | 'lexend' | 'sans' | 'mono';
+export type ReaderFont =
+  | 'serif'
+  | 'georgia'
+  | 'merriweather'
+  | 'lora'
+  | 'literata'
+  | 'sourceserif'
+  | 'lexend'
+  | 'sans'
+  | 'opensans'
+  | 'mono';
 export type ReaderMaxWidth = 'narrow' | 'medium' | 'wide' | 'full';
 export type ViewMode = 'english' | 'bilingual' | 'raw';
 
@@ -58,9 +68,18 @@ export interface ReaderSettings {
   showChineseOnHover: boolean;
   hideHeaderInReader?: boolean;
   infiniteScrollEnabled?: boolean;
+  paragraphComments?: boolean;
+  autoUnlock?: boolean;
+  autoplayMode?: 'scroll' | 'readaloud';
+  scrollSpeedPreset?: 'low' | 'normal' | 'high';
+  readingPaceWpm?: number;
   ttsVoice?: string;
   ttsRate?: number;
-  ttsHighlightMode?: 'sentence' | 'paragraph' | 'none';
+  ttsHighlightMode?: 'word' | 'paragraph' | 'off';
+  followText?: boolean;
+  scrollingBehavior?: 'smooth' | 'page';
+  readingLine?: 'top' | 'middle' | 'spot';
+  continueNextChapter?: boolean;
 }
 
 export type AIProvider = 'gemini' | 'deepseek' | 'openrouter' | 'openai' | 'custom';
