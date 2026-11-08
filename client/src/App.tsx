@@ -761,18 +761,41 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
         return;
       }
 
-      if (e.key === 'ArrowRight' && chapters.length > 0 && currentChapter) {
+      if (
+        (e.key === 'ArrowRight' || e.key === 'k' || e.key === 'K') &&
+        chapters.length > 0 &&
+        currentChapter
+      ) {
         const currIdx = chapters.findIndex((c) => c.id === currentChapter.id);
         if (currIdx < chapters.length - 1) {
           handleSelectChapter(chapters[currIdx + 1].id);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-      } else if (e.key === 'ArrowLeft' && chapters.length > 0 && currentChapter) {
+      } else if (
+        (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J') &&
+        chapters.length > 0 &&
+        currentChapter
+      ) {
         const currIdx = chapters.findIndex((c) => c.id === currentChapter.id);
         if (currIdx > 0) {
           handleSelectChapter(chapters[currIdx - 1].id);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+      } else if (e.key === 'f' || e.key === 'F') {
+        const fontOrder: any[] = [
+          'georgia',
+          'merriweather',
+          'lora',
+          'literata',
+          'sourceserif',
+          'lexend',
+          'sans',
+          'opensans',
+          'mono'
+        ];
+        const curIdx = fontOrder.indexOf(readerSettings.fontFamily);
+        const nextFont = fontOrder[(curIdx + 1) % fontOrder.length];
+        handleSaveSettings(translationSettings, { ...readerSettings, fontFamily: nextFont });
       }
     };
 

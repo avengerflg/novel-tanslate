@@ -23,7 +23,8 @@ import {
   Cloud,
   Scroll,
   Zap,
-  Sliders
+  Sliders,
+  Keyboard
 } from 'lucide-react';
 
 interface ReaderSettingsModalProps {
@@ -43,6 +44,7 @@ export const ReaderSettingsModal: React.FC<ReaderSettingsModalProps> = ({
 }) => {
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [showAllShortcuts, setShowAllShortcuts] = useState(false);
 
   useEffect(() => {
     if ('speechSynthesis' in window) {
@@ -56,6 +58,31 @@ export const ReaderSettingsModal: React.FC<ReaderSettingsModalProps> = ({
   }, []);
 
   if (!isOpen) return null;
+
+  const handleResetDefaults = () => {
+    onChange({
+      theme: 'default',
+      fontFamily: 'georgia',
+      fontSize: 18,
+      lineHeight: 1.8,
+      maxWidth: 'medium',
+      viewMode: 'english',
+      showChineseOnHover: true,
+      hideHeaderInReader: false,
+      infiniteScrollEnabled: false,
+      paragraphComments: true,
+      autoUnlock: false,
+      autoplayMode: 'scroll',
+      scrollSpeedPreset: 'normal',
+      readingPaceWpm: 240,
+      ttsHighlightMode: 'paragraph',
+      ttsRate: 1.0,
+      followText: true,
+      scrollingBehavior: 'page',
+      readingLine: 'middle',
+      continueNextChapter: true
+    });
+  };
 
   const updateSetting = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
     onChange({
@@ -728,6 +755,117 @@ export const ReaderSettingsModal: React.FC<ReaderSettingsModalProps> = ({
                 />
               </button>
             </div>
+
+            {/* Read aloud link */}
+            <div className="pt-2">
+              <span className="text-xs font-semibold text-amber-400 hover:text-amber-300 cursor-pointer transition">
+                More in Settings › Read aloud
+              </span>
+            </div>
+          </div>
+
+          {/* ── 7. Keyboard Shortcuts Card (Image 6) ── */}
+          <div className="bg-[#13151b] border border-white/[0.08] rounded-2xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-white/[0.06] text-slate-300 flex items-center justify-center">
+                <Keyboard className="w-4 h-4" />
+              </div>
+              <span className="font-bold text-sm text-slate-100">Keyboard Shortcuts</span>
+            </div>
+
+            <div className="space-y-2.5 pt-1 text-xs">
+              {/* Previous Chapter */}
+              <div className="flex items-center justify-between text-slate-300">
+                <span>Previous chapter</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded bg-white/[0.08] text-slate-200 font-mono text-[11px] font-bold border border-white/[0.06]">
+                    ←
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-white/[0.08] text-slate-200 font-mono text-[11px] font-bold border border-white/[0.06]">
+                    J
+                  </span>
+                </div>
+              </div>
+
+              {/* Next Chapter */}
+              <div className="flex items-center justify-between text-slate-300">
+                <span>Next chapter</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded bg-white/[0.08] text-slate-200 font-mono text-[11px] font-bold border border-white/[0.06]">
+                    →
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-white/[0.08] text-slate-200 font-mono text-[11px] font-bold border border-white/[0.06]">
+                    K
+                  </span>
+                </div>
+              </div>
+
+              {/* Cycle Font Family */}
+              <div className="flex items-center justify-between text-slate-300">
+                <span>Cycle font family</span>
+                <span className="px-2 py-0.5 rounded bg-white/[0.08] text-slate-200 font-mono text-[11px] font-bold border border-white/[0.06]">
+                  F
+                </span>
+              </div>
+            </div>
+
+            {/* All keyboard shortcuts link */}
+            <div
+              onClick={() => setShowAllShortcuts(!showAllShortcuts)}
+              className="pt-2 border-t border-white/[0.04] flex items-center justify-between text-xs text-amber-400 font-semibold cursor-pointer hover:text-amber-300 transition"
+            >
+              <span>All keyboard shortcuts</span>
+              <ChevronRight className={`w-4 h-4 transition-transform ${showAllShortcuts ? 'rotate-90' : ''}`} />
+            </div>
+
+            {showAllShortcuts && (
+              <div className="pt-2 space-y-2 text-xs border-t border-white/[0.06] text-slate-400 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span>Toggle Header/Controls</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/[0.08] font-mono text-[10px] text-slate-300">H</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Play/Pause Autoplay</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/[0.08] font-mono text-[10px] text-slate-300">Space</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Cycle Display Mode</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/[0.08] font-mono text-[10px] text-slate-300">D</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Close Settings / Drawers</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/[0.08] font-mono text-[10px] text-slate-300">Esc</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Reset to Default Button */}
+          <button
+            type="button"
+            onClick={handleResetDefaults}
+            className="w-full py-3.5 rounded-2xl bg-[#13151b] hover:bg-white/[0.06] border border-white/[0.08] text-slate-200 font-bold text-xs transition touch-active text-center"
+          >
+            Reset to Default
+          </button>
+
+          {/* All Reading Settings Row */}
+          <div
+            onClick={() => {
+              if (onOpenAISettings) {
+                onClose();
+                onOpenAISettings();
+              }
+            }}
+            className="p-3.5 rounded-2xl bg-[#13151b] border border-white/[0.08] flex items-center justify-between text-slate-200 hover:bg-[#191b24] cursor-pointer transition touch-active mb-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                <Settings className="w-4 h-4" />
+              </div>
+              <span className="font-bold text-sm text-slate-100">All reading settings</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400" />
           </div>
         </div>
       </div>
