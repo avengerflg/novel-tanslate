@@ -94,6 +94,22 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
 
+  // Clean chapter title: removes repetitive "Chapter 26:", "Ch. 26", "第26章", etc.
+  const cleanTitle = (rawTitle?: string) => {
+    if (!rawTitle) return '';
+    return rawTitle
+      .replace(/^Chapter\s*\d+\s*[:：\-—]?\s*/i, '')
+      .replace(/^Ch\s*\.?\s*\d+\s*[:：\-—]?\s*/i, '')
+      .replace(/^第\s*[0-9零一二三四五六七八九十百千万]+\s*[章回节话集]\s*[:：\-—]?\s*/, '')
+      .trim() || rawTitle;
+  };
+
+  const displayTitle = cleanTitle(chapter.translatedTitle || chapter.chineseTitle) || `Chapter ${chapter.index}`;
+
+  const firstParaHasHeading =
+    translatedParagraphs.length > 0 &&
+    /^(Chapter\s*\d+|第\s*[0-9零一二三四五六七八九十百千万]+\s*[章回节话集])/i.test(translatedParagraphs[0]);
+
   // Translation timer
   useEffect(() => {
     let timer: any;
@@ -351,7 +367,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* ── Top Header (Exact Kayn Scans Style) ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between text-slate-100 select-none transition-all duration-300 ease-in-out ${
           controlsVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -360,25 +376,25 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         {/* Left: Circular Back Button `<` */}
         <button
           onClick={onBackToDetail || (() => window.history.back())}
-          className="w-11 h-11 rounded-full bg-[#15161b] hover:bg-[#1f2027] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-sm touch-active shrink-0"
+          className="w-11 h-11 rounded-full bg-[#15161b] hover:bg-[#1f2027] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-sm touch-active shrink-0 z-10"
           title="Back to Novel Details"
         >
           <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
         </button>
 
-        {/* Center Title: "Ch. 1 / 390: Mud Monkey" (Matches Image Exactly) */}
-        <div className="flex-1 min-w-0 text-center px-2">
-          <p className="text-xs sm:text-sm truncate tracking-tight">
+        {/* Center Title: "Ch. 26 / 390: Raise the Price" (Absolute Perfect Centering) */}
+        <div className="absolute inset-x-16 top-0 bottom-0 flex items-center justify-center text-center pointer-events-none px-2">
+          <p className="text-xs sm:text-sm truncate tracking-tight text-center max-w-full">
             <span className="text-slate-200 font-medium">Ch. {chapter.index}</span>
             <span className="text-slate-500 font-normal"> / {chapters.length}: </span>
-            <span className="text-slate-300 font-normal">{chapter.translatedTitle || chapter.chineseTitle}</span>
+            <span className="text-slate-300 font-normal">{displayTitle}</span>
           </p>
         </div>
 
         {/* Right: Circular Menu Button `≡` */}
         <button
           onClick={onOpenDrawer}
-          className="w-11 h-11 rounded-full bg-[#15161b] hover:bg-[#1f2027] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-sm touch-active shrink-0"
+          className="w-11 h-11 rounded-full bg-[#15161b] hover:bg-[#1f2027] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-sm touch-active shrink-0 z-10"
           title="Table of Contents"
         >
           <Menu className="w-5 h-5 stroke-[2.2]" />
@@ -413,10 +429,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       >
         <div className={`mx-auto ${maxWidthClass}`}>
           
-          {/* Chapter Main Title Display (Matches Image Clean Style) */}
-          <div className="text-center mb-8 sm:mb-12">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-200">
-              {chapter.translatedTitle || chapter.chineseTitle}
+          {/* Chapter Main Title Display (Matches Image: Clean Title in Center) */}
+          <div className="text-center my-6 sm:my-10">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-normal text-slate-200">
+              {displayTitle}
             </h1>
           </div>
 
@@ -531,6 +547,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               {/* Mode 1: English Only */}
               {settings.viewMode === 'english' && chapter.status === 'translated' && (
                 <div className="space-y-6 sm:space-y-7">
+                  {!firstParaHasHeading && (
+                    <p className="text-left text-slate-200 font-medium">
+                      Chapter {chapter.index}: {displayTitle}
+                    </p>
+                  )}
                   {translatedParagraphs.map((para, idx) => (
                     <div
                       key={idx}
@@ -540,7 +561,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                       onMouseEnter={() => setHoveredIdx(idx)}
                       onMouseLeave={() => setHoveredIdx(null)}
                     >
-                      <p itemProp="text" className="indent-6 sm:indent-8 text-justify md:text-left selection:bg-amber-500/30">
+                      <p itemProp="text" className="text-left selection:bg-amber-500/30">
                         {para}
                       </p>
 
