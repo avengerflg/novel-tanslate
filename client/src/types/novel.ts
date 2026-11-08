@@ -43,8 +43,8 @@ export interface Novel {
   updatedAt: number;
 }
 
-export type ReaderTheme = 'light' | 'sepia' | 'dark' | 'oled';
-export type ReaderFont = 'literata' | 'lora' | 'serif' | 'sans';
+export type ReaderTheme = 'default' | 'dark' | 'gray' | 'sepia' | 'light' | 'white';
+export type ReaderFont = 'serif' | 'merriweather' | 'lora' | 'literata' | 'lexend' | 'sans' | 'mono';
 export type ReaderMaxWidth = 'narrow' | 'medium' | 'wide' | 'full';
 export type ViewMode = 'english' | 'bilingual' | 'raw';
 
@@ -56,6 +56,11 @@ export interface ReaderSettings {
   maxWidth: ReaderMaxWidth;
   viewMode: ViewMode;
   showChineseOnHover: boolean;
+  hideHeaderInReader?: boolean;
+  infiniteScrollEnabled?: boolean;
+  ttsVoice?: string;
+  ttsRate?: number;
+  ttsHighlightMode?: 'sentence' | 'paragraph' | 'none';
 }
 
 export type AIProvider = 'gemini' | 'deepseek' | 'openrouter' | 'openai' | 'custom';

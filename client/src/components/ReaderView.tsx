@@ -108,6 +108,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       if (docHeight > 0) {
         const pct = Math.min(100, Math.max(0, (window.scrollY / docHeight) * 100));
         setScrollProgress(pct);
+
+        // Infinite scroll: auto load next chapter near bottom if enabled
+        if (settings.infiniteScrollEnabled && pct >= 98 && !isFetchingNext && !isTranslating) {
+          handleNextClick();
+        }
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -239,9 +244,15 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       ? 'font-literata'
       : settings.fontFamily === 'lora'
       ? 'font-lora'
-      : settings.fontFamily === 'serif'
-      ? 'font-serif'
-      : 'font-sans';
+      : settings.fontFamily === 'merriweather'
+      ? 'font-merriweather'
+      : settings.fontFamily === 'lexend'
+      ? 'font-lexend'
+      : settings.fontFamily === 'mono'
+      ? 'font-mono'
+      : settings.fontFamily === 'sans'
+      ? 'font-sans'
+      : 'font-serif';
 
   const handleNextClick = async () => {
     stopAllAutoplay();
@@ -279,7 +290,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       </div>
 
       {/* ── Top Header (Exact Kayn Scans Image 1 Style) ── */}
-      <header className="sticky top-0 z-40 bg-[#0c0d10]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none">
+      <header
+        className={`sticky top-0 z-40 bg-[#0c0d10]/95 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none transition-transform duration-300 ${
+          settings.hideHeaderInReader && scrollProgress > 5 ? '-translate-y-full hover:translate-y-0 focus-within:translate-y-0' : 'translate-y-0'
+        }`}
+      >
         
         {/* Left: Circular Back Button `<` */}
         <button

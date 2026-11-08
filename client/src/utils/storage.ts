@@ -221,13 +221,17 @@ export function loadReaderSettings(): ReaderSettings {
   } catch (e) {}
 
   return {
-    theme: 'dark',
-    fontFamily: 'literata',
+    theme: 'default',
+    fontFamily: 'serif',
     fontSize: 18,
     lineHeight: 1.8,
     maxWidth: 'medium',
     viewMode: 'english',
-    showChineseOnHover: true
+    showChineseOnHover: true,
+    hideHeaderInReader: false,
+    infiniteScrollEnabled: false,
+    ttsHighlightMode: 'sentence',
+    ttsRate: 1.0
   };
 }
 

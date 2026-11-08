@@ -406,3 +406,4 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
     </div>
   );
 };
+

@@ -69,9 +69,9 @@ export const App: React.FC = () => {
   const [isReaderSettingsOpen, setIsReaderSettingsOpen] = useState(false);
   const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
 
-  // Apply theme to document
+  // Apply dark theme class to document
   useEffect(() => {
-    if (readerSettings.theme === 'dark' || readerSettings.theme === 'oled') {
+    if (readerSettings.theme === 'default' || readerSettings.theme === 'dark' || readerSettings.theme === 'gray') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');

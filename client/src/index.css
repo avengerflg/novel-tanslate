@@ -33,18 +33,38 @@
   word-break: break-word;
 }
 
-/* Reader Themes */
-.theme-light {
-  background-color: #faf9f5;
-  color: #1a1a1a;
+/* Reader Themes (KaynScans schema: default, dark, gray, sepia, light, white) */
+.theme-default,
+.theme-oled {
+  background-color: #0c0d10;
+  color: #e5e7eb;
 }
-.theme-light .reader-card {
-  background-color: #ffffff;
-  border-color: #e5e5e5;
-  color: #1a1a1a;
+.theme-default .reader-card,
+.theme-oled .reader-card {
+  background-color: #14161e;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
 }
-.theme-light .reader-subtext { color: #666666; }
-.theme-light .reader-border { border-color: rgba(0, 0, 0, 0.08); }
+
+.theme-dark {
+  background-color: #12141a;
+  color: #e2e8f0;
+}
+.theme-dark .reader-card {
+  background-color: #1a1d26;
+  border-color: #2b303d;
+  color: #e2e8f0;
+}
+
+.theme-gray {
+  background-color: #1e2029;
+  color: #e2e8f0;
+}
+.theme-gray .reader-card {
+  background-color: #262933;
+  border-color: #3b3f4d;
+  color: #e2e8f0;
+}
 
 .theme-sepia {
   background-color: #f4ecd8;
@@ -55,32 +75,32 @@
   border-color: #e2d3bb;
   color: #38271d;
 }
-.theme-sepia .reader-subtext { color: #7d6350; }
-.theme-sepia .reader-border { border-color: rgba(56, 39, 29, 0.12); }
 
-.theme-dark {
-  background-color: #0f172a;
-  color: #e2e8f0;
+.theme-light {
+  background-color: #faf9f5;
+  color: #1a1a1a;
 }
-.theme-dark .reader-card {
-  background-color: #1e293b;
-  border-color: #334155;
-  color: #e2e8f0;
+.theme-light .reader-card {
+  background-color: #ffffff;
+  border-color: #e5e5e5;
+  color: #1a1a1a;
 }
-.theme-dark .reader-subtext { color: #94a3b8; }
-.theme-dark .reader-border { border-color: rgba(255, 255, 255, 0.1); }
 
-.theme-oled {
-  background-color: #000000;
-  color: #d4d4d8;
+.theme-white {
+  background-color: #ffffff;
+  color: #000000;
 }
-.theme-oled .reader-card {
-  background-color: #09090b;
-  border-color: #27272a;
-  color: #d4d4d8;
+.theme-white .reader-card {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  color: #000000;
 }
-.theme-oled .reader-subtext { color: #71717a; }
-.theme-oled .reader-border { border-color: rgba(255, 255, 255, 0.08); }
+
+/* Font classes */
+.font-merriweather { font-family: 'Merriweather', Georgia, serif; }
+.font-lexend { font-family: 'Lexend', system-ui, sans-serif; }
+.font-literata { font-family: 'Literata', Georgia, serif; }
+.font-lora { font-family: 'Lora', Georgia, serif; }
 
 /* Slim custom scrollbars */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
