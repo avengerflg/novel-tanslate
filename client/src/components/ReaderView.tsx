@@ -13,6 +13,7 @@ import {
   Minimize2,
   Sliders,
   List,
+  Menu,
   Settings,
   Play,
   Pause,
@@ -350,7 +351,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* ── Top Header (Exact Kayn Scans Style) ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/95 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none transition-all duration-300 ease-in-out ${
           controlsVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -359,29 +360,28 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         {/* Left: Circular Back Button `<` */}
         <button
           onClick={onBackToDetail || (() => window.history.back())}
-          className="w-10 h-10 rounded-full bg-[#181a20] hover:bg-[#22252e] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-md touch-active shrink-0"
+          className="w-11 h-11 rounded-full bg-[#15161b] hover:bg-[#1f2027] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-sm touch-active shrink-0"
           title="Back to Novel Details"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
         </button>
 
-        {/* Center Title: "Ch. 1 / 390: Mud Monkey" */}
+        {/* Center Title: "Ch. 1 / 390: Mud Monkey" (Matches Image Exactly) */}
         <div className="flex-1 min-w-0 text-center px-2">
-          <p className="text-xs sm:text-sm font-semibold truncate text-slate-200">
-            <span className="text-amber-400 font-bold">Ch. {chapter.index}</span>
-            <span className="text-slate-500 font-normal"> / {chapters.length}</span>
-            <span className="text-slate-400">: </span>
-            <span>{chapter.translatedTitle || chapter.chineseTitle}</span>
+          <p className="text-xs sm:text-sm truncate tracking-tight">
+            <span className="text-slate-200 font-medium">Ch. {chapter.index}</span>
+            <span className="text-slate-500 font-normal"> / {chapters.length}: </span>
+            <span className="text-slate-300 font-normal">{chapter.translatedTitle || chapter.chineseTitle}</span>
           </p>
         </div>
 
         {/* Right: Circular Menu Button `≡` */}
         <button
           onClick={onOpenDrawer}
-          className="w-10 h-10 rounded-full bg-[#181a20] hover:bg-[#22252e] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-md touch-active shrink-0"
+          className="w-11 h-11 rounded-full bg-[#15161b] hover:bg-[#1f2027] border border-white/[0.08] flex items-center justify-center text-slate-200 hover:text-white transition shadow-sm touch-active shrink-0"
           title="Table of Contents"
         >
-          <List className="w-5 h-5" />
+          <Menu className="w-5 h-5 stroke-[2.2]" />
         </button>
       </header>
 
@@ -413,19 +413,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       >
         <div className={`mx-auto ${maxWidthClass}`}>
           
-          {/* Chapter Main Title Display (Kayn Scans Image 1) */}
-          <div className="text-center mb-10 sm:mb-14">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-100 leading-tight">
+          {/* Chapter Main Title Display (Matches Image Clean Style) */}
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-200">
               {chapter.translatedTitle || chapter.chineseTitle}
             </h1>
-            <p className="text-sm sm:text-base text-slate-400 mt-2 font-medium">
-              Chapter {chapter.index}: {chapter.translatedTitle || chapter.chineseTitle}
-            </p>
-            {chapter.translatedTitle && (
-              <p className="text-xs sm:text-sm text-slate-500 font-chinese mt-1">
-                {chapter.chineseTitle}
-              </p>
-            )}
           </div>
 
           {/* Quick Translate Button if not translated */}
@@ -841,7 +833,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-amber-400 hover:bg-white/[0.06] transition touch-active"
             title="Table of Contents"
           >
-            <List className="w-4 h-4" />
+            <Menu className="w-4 h-4 stroke-[2.2]" />
           </button>
         )}
 
