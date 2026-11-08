@@ -723,7 +723,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* ── Autoplay Popup Menu (Matches Image 2 Exactly!) ── */}
       {autoplayMenuOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs"
             onClick={() => setAutoplayMenuOpen(false)}
@@ -837,11 +840,18 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       {/* ── Floating Mobile Bar (Matches Image 1 Exactly!) ── */}
       <nav
         aria-label="Floating Reader Navigation"
-        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw] transition-all duration-300 ease-in-out gpu-layer ${
+        className={`fixed z-50 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw] transition-all duration-300 ease-in-out ${
           controlsVisible
-            ? 'translate-y-0 opacity-100 pointer-events-auto'
-            : 'translate-y-28 opacity-0 pointer-events-none'
+            ? 'opacity-100 pointer-events-auto'
+            : 'opacity-0 pointer-events-none'
         }`}
+        style={{
+          left: '50%',
+          bottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))',
+          transform: controlsVisible
+            ? 'translateX(-50%) translateY(0)'
+            : 'translateX(-50%) translateY(5rem)'
+        }}
       >
         {/* 1. Prev Chapter `<` */}
         <button
