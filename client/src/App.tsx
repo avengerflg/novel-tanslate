@@ -947,7 +947,7 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
       </main>
 
       {/* Bottom Nav Bar in Detail/Library screens on mobile (Kayn Scans Image 4) */}
-      {currentUser && activeView !== 'reader' && (
+      {activeView !== 'reader' && (
         <BottomNav
           activeTab={activeView === 'library' ? 'library' : 'detail'}
           hasActiveNovel={Boolean(currentNovel)}

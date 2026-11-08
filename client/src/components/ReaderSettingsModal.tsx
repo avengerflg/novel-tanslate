@@ -212,9 +212,6 @@ export const ReaderSettingsModal: React.FC<ReaderSettingsModalProps> = ({
                   <span className="text-[10px] opacity-70 font-normal">Continuous scrolling</span>
                 </button>
               </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                Full comment section with all comments visible.
-              </p>
             </div>
 
             {/* Toggle 1: Hide header while reading */}
@@ -242,32 +239,7 @@ export const ReaderSettingsModal: React.FC<ReaderSettingsModalProps> = ({
               </button>
             </div>
 
-            {/* Toggle 2: Paragraph comments */}
-            <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between gap-4">
-              <div>
-                <span className="text-xs sm:text-sm font-medium text-slate-200 block">
-                  Paragraph comments
-                </span>
-                <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
-                  Show comment bubbles beside paragraphs. Saved on this device.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => updateSetting('paragraphComments', !settings.paragraphComments)}
-                className={`w-11 h-6 rounded-full transition relative shrink-0 p-0.5 ${
-                  settings.paragraphComments ? 'bg-amber-500' : 'bg-white/10'
-                }`}
-              >
-                <div
-                  className={`w-5 h-5 rounded-full bg-black shadow-md transition-transform ${
-                    settings.paragraphComments ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Toggle 3: Auto Unlock */}
+            {/* Toggle 2: Auto Unlock */}
             <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between gap-4">
               <div>
                 <span className="text-xs sm:text-sm font-medium text-slate-200 flex items-center gap-1.5">
