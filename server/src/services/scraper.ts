@@ -54,16 +54,123 @@ async function fetchPageWithRetry(url: string, origin: string, maxRetries = 3): 
   throw new Error(`Failed to fetch page after ${maxRetries} attempts`);
 }
 
+export async function scrapeViaJinaProxy(url: string): Promise<ScrapedChapter> {
+  const jinaUrl = 'https://r.jina.ai/' + url;
+  const res = await fetch(jinaUrl, {
+    headers: { 'X-Return-Format': 'markdown' },
+    signal: AbortSignal.timeout(25000)
+  });
+
+  if (!res.ok) {
+    throw new Error(`Proxy fetch failed (${res.status} ${res.statusText})`);
+  }
+
+  const text = await res.text();
+
+  // Extract title metadata
+  const titleLine = text.match(/Title:\s*(.+)/)?.[1] || '';
+  let novelTitle = '';
+  let chapterTitle = '';
+
+  const titleParts = titleLine.split(/_|-|\|/);
+  if (titleParts.length >= 2) {
+    chapterTitle = titleParts[0].trim();
+    novelTitle = titleParts[1].replace(/最新章节|全文阅读|在线阅读|小说|思兔閱讀|笔趣阁/g, '').trim();
+  } else {
+    chapterTitle = titleParts[0].trim();
+    novelTitle = 'Web Novel';
+  }
+
+  // Parse markdown links
+  const links = [...text.matchAll(/\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/g)];
+
+  // If this was a novel index/overview page (e.g. /book/12345/ or no chapter content), jump to chapter 1
+  const firstChapLink = links.find(l => /第\s*1\s*章|第一章/i.test(l[1]) || /第\s*1\s*章|第一章/i.test(l[2]));
+  if (firstChapLink && text.length < 6000 && !/下一章|下一頁/i.test(text)) {
+    console.log(`[Scraper] Jina detected catalog page for ${url}, fetching chapter 1: ${firstChapLink[2]}`);
+    return scrapeViaJinaProxy(firstChapLink[2]);
+  }
+
+  let nextUrl: string | undefined;
+  let prevUrl: string | undefined;
+  for (const l of links) {
+    if (/下一章|下页|next/i.test(l[1]) && !nextUrl) nextUrl = l[2];
+    if (/上一章|上页|prev/i.test(l[1]) && !prevUrl && !l[2].endsWith('/book/')) prevUrl = l[2];
+  }
+
+  // Clean prose content
+  let content = text
+    .replace(/^Title:[\s\S]*?Markdown Content:\s*/m, '')
+    .replace(/^.*?#\s*第[^\n]+/m, '')
+    .replace(/\[上一章\][\s\S]*$/m, '')
+    .replace(/\[下一章\][\s\S]*$/m, '')
+    .replace(/\[.*?\]\((https?|javascript):[^\)]+\)/g, '')
+    .replace(/Copyright[\s\S]*$/mi, '')
+    .replace(/溫馨提示[\s\S]*$/m, '');
+
+  const filterKeywords = [
+    '请记住本书首发域名',
+    '最新章节',
+    '笔趣阁',
+    '思兔閱讀',
+    '无弹窗',
+    '章节报错',
+    '推荐票',
+    '月票',
+    '书签',
+    '上一章',
+    '下一章',
+    '加入书签',
+    '投票推荐',
+    '投推荐票',
+    '天才一秒记住',
+    '免费阅读',
+    '手机版阅读网址',
+    'http://',
+    'https://',
+    'www.'
+  ];
+
+  const lines = content.split(/\r?\n/)
+    .map(l => l.trim().replace(/^[\u3000\s]+/, ''))
+    .filter(l => {
+      if (!l || l.length < 2) return false;
+      if (l.startsWith('http') || l.startsWith('![')) return false;
+      if (filterKeywords.some(kw => l.includes(kw) && l.length < 50)) return false;
+      return true;
+    });
+
+  return {
+    novelTitle: novelTitle || 'Web Novel',
+    chapterTitle: chapterTitle || 'Chapter',
+    content: lines.join('\n\n'),
+    nextUrl,
+    prevUrl,
+    currentUrl: url
+  };
+}
+
 export async function scrapeChapterFromUrl(url: string): Promise<ScrapedChapter> {
   const parsedUrl = new URL(url);
 
-  const res = await fetchPageWithRetry(url, parsedUrl.origin);
+  let res: Response | null = null;
+  try {
+    res = await fetchPageWithRetry(url, parsedUrl.origin);
+  } catch (err) {
+    console.warn(`[Scraper] Direct fetch failed for ${url}, trying Jina fallback:`, err);
+  }
 
-  if (!res.ok) {
-    if (res.status === 403) {
-      throw new Error(`Failed to fetch page (403 Forbidden: ${parsedUrl.hostname} is protected by Cloudflare). Please use an accessible mirror like 69shuba (e.g. 69shuba.tw) or paste the chapter text directly.`);
+  // If direct fetch is blocked by Cloudflare or forbidden (403, 429, 503) or failed, fallback to Jina
+  if (!res || !res.ok) {
+    try {
+      console.log(`[Scraper] Direct fetch returned ${res?.status || 'network error'}, invoking Jina proxy for ${url}`);
+      return await scrapeViaJinaProxy(url);
+    } catch (jinaErr: any) {
+      if (res && res.status === 403) {
+        throw new Error(`Failed to fetch page (403 Forbidden: ${parsedUrl.hostname} is protected by Cloudflare). Please use an accessible mirror or paste text directly.`);
+      }
+      throw new Error(jinaErr.message || `Failed to fetch page (${res?.status || 'Network Error'})`);
     }
-    throw new Error(`Failed to fetch page (${res.status} ${res.statusText})`);
   }
 
   const arrayBuffer = await res.arrayBuffer();

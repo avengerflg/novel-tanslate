@@ -39,6 +39,7 @@ interface ReaderViewProps {
   onOpenDrawer?: () => void;
   onOpenReaderSettings?: () => void;
   onOpenAISettings?: () => void;
+  onUpdateSettings?: (newSettings: Partial<ReaderSettings>) => void;
 }
 
 export const ReaderView: React.FC<ReaderViewProps> = ({
@@ -57,13 +58,20 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   isTranslating,
   onOpenDrawer,
   onOpenReaderSettings,
-  onOpenAISettings
+  onOpenAISettings,
+  onUpdateSettings
 }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [isFetchingNext, setIsFetchingNext] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Dynamic Scroll Visibility: show at first, hide when scrolling down, show when scrolling up
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [displayModeToast, setDisplayModeToast] = useState<string | null>(null);
+  const lastScrollY = useRef(0);
+  const toastTimeoutRef = useRef<any>(null);
 
   // Autoplay popup & execution state (matches Image 2)
   const [autoplayMenuOpen, setAutoplayMenuOpen] = useState(false);
@@ -101,12 +109,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     };
   }, [isTranslating]);
 
-  // Scroll percentage tracker
+  // Scroll direction & progress tracker
   useEffect(() => {
     const handleScroll = () => {
+      const currentY = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       if (docHeight > 0) {
-        const pct = Math.min(100, Math.max(0, (window.scrollY / docHeight) * 100));
+        const pct = Math.min(100, Math.max(0, (currentY / docHeight) * 100));
         setScrollProgress(pct);
 
         // Infinite scroll: auto load next chapter near bottom if enabled
@@ -114,10 +123,60 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           handleNextClick();
         }
       }
+
+      // If at top of chapter, always keep options visible
+      if (currentY <= 60) {
+        setControlsVisible(true);
+      } else {
+        const diff = currentY - lastScrollY.current;
+        // Scroll down past threshold -> hide controls smoothly
+        if (diff > 8) {
+          setControlsVisible(false);
+          setAutoplayMenuOpen(false);
+        }
+        // Scroll up past threshold -> reveal options again
+        else if (diff < -8) {
+          setControlsVisible(true);
+        }
+      }
+      lastScrollY.current = currentY;
     };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [settings.infiniteScrollEnabled, isFetchingNext, isTranslating]);
+
+  // Tap on text area toggles controls visibility
+  const handleContentClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('nav') || target.closest('header')) {
+      return;
+    }
+    setControlsVisible((prev) => !prev);
+  };
+
+  // Cycle display mode on 文/A button click
+  const handleCycleViewMode = () => {
+    const order: Array<ReaderSettings['viewMode']> = ['english', 'bilingual', 'raw'];
+    const currentIdx = order.indexOf(settings.viewMode);
+    const nextMode = order[(currentIdx + 1) % order.length];
+
+    if (onUpdateSettings) {
+      onUpdateSettings({ viewMode: nextMode });
+    }
+
+    const labels: Record<string, string> = {
+      english: 'Display: English Only',
+      bilingual: 'Display: Bilingual (Side-by-Side)',
+      raw: 'Display: Original Chinese'
+    };
+
+    setDisplayModeToast(labels[nextMode]);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setDisplayModeToast(null);
+    }, 2200);
+  };
 
   // Fullscreen listener
   useEffect(() => {
@@ -289,13 +348,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         />
       </div>
 
-      {/* ── Top Header (Exact Kayn Scans Image 1 Style) ── */}
+      {/* ── Top Header (Exact Kayn Scans Style) ── */}
       <header
-        className={`sticky top-0 z-40 bg-[#0c0d10]/95 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none transition-transform duration-300 ${
-          settings.hideHeaderInReader && scrollProgress > 5 ? '-translate-y-full hover:translate-y-0 focus-within:translate-y-0' : 'translate-y-0'
+        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/95 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 h-16 flex items-center justify-between gap-3 text-slate-100 select-none transition-all duration-300 ease-in-out ${
+          controlsVisible
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : '-translate-y-full opacity-0 pointer-events-none'
         }`}
       >
-        
         {/* Left: Circular Back Button `<` */}
         <button
           onClick={onBackToDetail || (() => window.history.back())}
@@ -308,7 +368,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         {/* Center Title: "Ch. 1 / 390: Mud Monkey" */}
         <div className="flex-1 min-w-0 text-center px-2">
           <p className="text-xs sm:text-sm font-semibold truncate text-slate-200">
-            <span className="text-amber-400">Ch. {chapter.index}</span>
+            <span className="text-amber-400 font-bold">Ch. {chapter.index}</span>
             <span className="text-slate-500 font-normal"> / {chapters.length}</span>
             <span className="text-slate-400">: </span>
             <span>{chapter.translatedTitle || chapter.chineseTitle}</span>
@@ -325,11 +385,29 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </button>
       </header>
 
+      {/* Sleek Floating Progress / XP Pill when scrolling down (Matches Image 10) */}
+      <div
+        className={`fixed top-4 right-4 z-30 transition-all duration-300 pointer-events-none ${
+          !controlsVisible && scrollProgress > 2
+            ? 'translate-y-0 opacity-100 scale-100'
+            : '-translate-y-4 opacity-0 scale-95'
+        }`}
+      >
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#14161f]/85 backdrop-blur-md border border-white/[0.08] text-[11px] font-medium text-slate-200 shadow-xl shadow-black/50">
+          <span className="text-amber-400 font-bold flex items-center gap-1">
+            <span className="text-xs">⚡</span> +1 XP
+          </span>
+          <span className="text-slate-600">—</span>
+          <span className="text-slate-400">Chapter read</span>
+        </div>
+      </div>
+
       {/* ── Main Prose Content ── */}
       <article
         id="chapter-article"
         role="article"
-        className="chapter-content article hentry entry-content reader-article mx-auto px-4 sm:px-8 md:px-12 pt-8 sm:pt-14"
+        onClick={handleContentClick}
+        className="chapter-content article hentry entry-content reader-article mx-auto px-4 sm:px-8 md:px-12 pt-20 sm:pt-24 cursor-pointer"
         itemScope
         itemType="http://schema.org/Article"
       >
@@ -675,10 +753,24 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       )}
 
+      {/* Temporary Display Mode Toast */}
+      {displayModeToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 pointer-events-none">
+          <div className="px-4 py-2 rounded-full bg-[#181a22]/95 backdrop-blur-xl border border-amber-500/30 text-amber-300 font-semibold text-xs shadow-2xl flex items-center gap-2">
+            <Languages className="w-3.5 h-3.5" />
+            <span>{displayModeToast}</span>
+          </div>
+        </div>
+      )}
+
       {/* ── Floating Mobile Bar (Matches Image 1 Exactly!) ── */}
       <nav
         aria-label="Floating Reader Navigation"
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw]"
+        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#14161e]/95 backdrop-blur-xl border border-white/[0.12] rounded-full px-3 py-2 flex items-center gap-1.5 shadow-2xl shadow-black/80 max-w-[94vw] transition-all duration-300 ease-in-out ${
+          controlsVisible
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : 'translate-y-28 opacity-0 pointer-events-none'
+        }`}
       >
         {/* 1. Prev Chapter `<` */}
         <button
@@ -713,20 +805,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         {/* 3. Language / Display Mode `文/A` */}
         <button
           type="button"
-          onClick={() => {
-            const nextMode =
-              settings.viewMode === 'english'
-                ? 'bilingual'
-                : settings.viewMode === 'bilingual'
-                ? 'raw'
-                : 'english';
-            if (onOpenReaderSettings) {
-              onOpenReaderSettings();
-            }
-          }}
+          onClick={handleCycleViewMode}
           aria-label="Display Mode"
-          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-amber-400 hover:bg-white/[0.06] transition touch-active"
-          title="Display Mode (English / Bilingual / Raw)"
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition touch-active ${
+            settings.viewMode === 'bilingual'
+              ? 'text-amber-400 bg-amber-500/10'
+              : settings.viewMode === 'raw'
+              ? 'text-orange-400 bg-orange-500/10'
+              : 'text-slate-300 hover:text-amber-400 hover:bg-white/[0.06]'
+          }`}
+          title={`Display Mode: ${settings.viewMode.toUpperCase()} (Click to toggle English/Bilingual/Raw)`}
         >
           <Languages className="w-4 h-4" />
         </button>

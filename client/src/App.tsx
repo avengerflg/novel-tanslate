@@ -890,6 +890,9 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
             onOpenDrawer={() => setIsDrawerOpen(true)}
             onOpenReaderSettings={() => setIsReaderSettingsOpen(true)}
             onOpenAISettings={() => setIsAISettingsOpen(true)}
+            onUpdateSettings={(newSettings) =>
+              handleSaveSettings(translationSettings, { ...readerSettings, ...newSettings })
+            }
           />
         ) : (
           <LibraryView
