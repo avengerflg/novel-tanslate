@@ -210,12 +210,6 @@
   opacity: 0.9;
 }
 
-/* GPU-accelerated smooth transitions without overriding transforms */
-.gpu-layer {
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-}
-
 /* Fast tap response across all interactive elements */
 button, a, input, select, textarea, [role="button"] {
   touch-action: manipulation;

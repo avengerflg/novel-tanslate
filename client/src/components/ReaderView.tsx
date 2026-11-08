@@ -138,10 +138,39 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     };
   }, [isTranslating]);
 
-  // Scroll direction & progress tracker
+  // Scroll direction & progress tracker: hide on scroll down, show on scroll up
   useEffect(() => {
+    let lastY = window.scrollY;
+    let accumulatedDelta = 0;
+
     const handleScroll = () => {
       const currentY = window.scrollY;
+      const delta = currentY - lastY;
+
+      // Keep controls visible near the very top of chapter
+      if (currentY <= 60) {
+        setControlsVisible(true);
+        accumulatedDelta = 0;
+      } else {
+        // Reset accumulator on direction change
+        if ((delta > 0 && accumulatedDelta < 0) || (delta < 0 && accumulatedDelta > 0)) {
+          accumulatedDelta = 0;
+        }
+        accumulatedDelta += delta;
+
+        // Scrolling DOWN (> 20px deliberate reading scroll) -> hide smoothly
+        if (accumulatedDelta > 20) {
+          setControlsVisible(false);
+          setAutoplayMenuOpen(false);
+          accumulatedDelta = 0;
+        }
+        // Scrolling UP (< -10px upward swipe) -> reveal controls immediately on screen bottom
+        else if (accumulatedDelta < -10) {
+          setControlsVisible(true);
+          accumulatedDelta = 0;
+        }
+      }
+
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       if (docHeight > 0) {
         const pct = Math.min(100, Math.max(0, (currentY / docHeight) * 100));
@@ -153,22 +182,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         }
       }
 
-      // Keep options visible at top of chapter
-      if (currentY <= 60) {
-        setControlsVisible(true);
-      } else {
-        const diff = currentY - lastScrollY.current;
-        // Scroll down past threshold -> hide controls smoothly
-        if (diff > 8) {
-          setControlsVisible(false);
-          setAutoplayMenuOpen(false);
-        }
-        // Scroll up past threshold -> reveal options again
-        else if (diff < -5) {
-          setControlsVisible(true);
-        }
-      }
-      lastScrollY.current = currentY;
+      lastY = currentY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -402,7 +416,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   return (
     <div
       onClick={handleContentClick}
-      className={`min-h-[100dvh] pb-32 sm:pb-36 transition-colors duration-200 theme-${settings.theme} relative gpu-layer`}
+      className={`min-h-[100dvh] pb-32 sm:pb-36 transition-colors duration-200 theme-${settings.theme} relative`}
     >
       
       {/* Top Reading Progress Bar */}
@@ -415,7 +429,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* ── Top Header (Exact Kayn Scans Style) ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between text-slate-100 select-none transition-all duration-300 ease-in-out gpu-layer ${
+        className={`fixed top-0 left-0 right-0 z-40 bg-[#0c0d10]/90 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between text-slate-100 select-none transition-all duration-300 ease-in-out ${
           controlsVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -850,7 +864,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           bottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))',
           transform: controlsVisible
             ? 'translateX(-50%) translateY(0)'
-            : 'translateX(-50%) translateY(5rem)'
+            : 'translateX(-50%) translateY(140%)'
         }}
       >
         {/* 1. Prev Chapter `<` */}
