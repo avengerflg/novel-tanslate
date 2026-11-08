@@ -111,8 +111,14 @@ export async function translateChapter(req: TranslationRequest): Promise<Transla
   const cleanApiKey = (req.apiKey || '').trim().replace(/[\r\n\u2028\u2029\s]/g, '');
 
   if (req.provider === 'gemini') {
+    // Normalize deprecated/renamed model names to current stable equivalents
     let model = req.model || 'gemini-2.0-flash';
-    if (model === 'gemini-2.5-flash' || model === 'gemini-1.5-flash-latest') {
+    if (
+      model === 'gemini-2.5-flash' ||
+      model === 'gemini-1.5-flash-latest' ||
+      model === 'gemini-1.5-flash' ||
+      model === 'gemini-1.5-pro'
+    ) {
       model = 'gemini-2.0-flash';
     }
 
@@ -140,9 +146,9 @@ export async function translateChapter(req: TranslationRequest): Promise<Transla
       signal: AbortSignal.timeout(90000)
     });
 
-    // Fallback if requested model returned 404 (e.g. gemini-1.5-flash)
-    if (!res.ok && res.status === 404 && model !== 'gemini-1.5-flash') {
-      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+    // Fallback: if the requested model returned 404, retry with gemini-2.0-flash
+    if (!res.ok && res.status === 404 && model !== 'gemini-2.0-flash') {
+      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cleanApiKey}`;
       res = await fetch(fallbackUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { GlossaryItem, GlossaryCategory } from '../types/novel';
 import { X, Search, Plus, Trash2, BookMarked, Download, Upload, RotateCcw } from 'lucide-react';
-import { DEFAULT_GLOSSARY } from '../utils/defaultGlossary';
 
 interface GlossaryModalProps {
   isOpen: boolean;
@@ -24,7 +23,7 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isAdding, setIsAdding] = useState(false);
 
-  // New item form
+  // New item form state
   const [newOriginal, setNewOriginal] = useState('');
   const [newTranslation, setNewTranslation] = useState('');
   const [newCategory, setNewCategory] = useState<GlossaryCategory>('character');
@@ -102,66 +101,71 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
   const categories: { id: string; label: string }[] = [
     { id: 'all', label: `All (${items.length})` },
     { id: 'character', label: 'Characters' },
-    { id: 'realm', label: 'Cultivation Realms' },
-    { id: 'sect', label: 'Sects & Clans' },
-    { id: 'item', label: 'Items & Artifacts' },
-    { id: 'term', label: 'Idioms & Terms' }
+    { id: 'realm', label: 'Realms' },
+    { id: 'sect', label: 'Sects' },
+    { id: 'item', label: 'Items' },
+    { id: 'term', label: 'Terms' }
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm">
+      <div className="relative w-full sm:max-w-3xl bg-[#161b22] border border-white/[0.1] rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-black/60 flex flex-col max-h-[92dvh] modal-enter">
+
+        {/* Mobile Handle */}
+        <div className="flex justify-center pt-3 sm:hidden shrink-0">
+          <div className="w-10 h-1 bg-white/20 rounded-full" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/60">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
               <BookMarked className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Translation Glossary & Memory</h2>
-              <p className="text-xs text-slate-400">
-                Fix character names, cultivation realms, and terms across chapters to prevent bad MTL
-              </p>
+              <h2 className="text-base font-bold text-slate-100">Translation Glossary & Memory</h2>
+              <p className="text-xs text-slate-400">Lock names, realms, and terminology across chapters</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition"
+            className="p-2 text-slate-400 hover:text-slate-200 rounded-xl hover:bg-white/[0.06] transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Toolbar */}
-        <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
+        <div className="p-4 border-b border-white/[0.06] bg-[#0d1117]/60 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search Chinese character, pinyin, or English translation..."
+              placeholder="Search Chinese or English..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              className="w-full pl-10 pr-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:bg-white/[0.06] transition"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsAdding(!isAdding)}
-              className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-semibold flex items-center gap-1.5 transition border border-amber-500/30"
+              className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-semibold flex items-center gap-1.5 border border-amber-500/25 transition touch-active"
             >
-              <Plus className="w-3.5 h-3.5" /> Add Term
+              <Plus className="w-4 h-4" />
+              <span>Add Term</span>
             </button>
             <button
               onClick={handleExportJSON}
               title="Export JSON"
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition"
+              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 transition"
             >
               <Download className="w-4 h-4" />
             </button>
             <label
               title="Import JSON"
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer"
+              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 transition cursor-pointer"
             >
               <Upload className="w-4 h-4" />
               <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
@@ -169,7 +173,7 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
             <button
               onClick={onResetDefaults}
               title="Reset to Cultivation Defaults"
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-amber-400 transition"
+              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-amber-400 transition"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -178,41 +182,41 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
 
         {/* Add Term Form */}
         {isAdding && (
-          <form onSubmit={handleAddItem} className="p-4 bg-slate-950 border-b border-amber-500/30 animate-in slide-in-from-top-2">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <form onSubmit={handleAddItem} className="p-4 bg-amber-500/5 border-b border-amber-500/20 animate-in slide-in-from-top-2 shrink-0">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Chinese Original</label>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Chinese Original</label>
                 <input
                   type="text"
                   placeholder="e.g. 萧炎"
                   value={newOriginal}
                   onChange={(e) => setNewOriginal(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-white/[0.1] rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-chinese"
                   required
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">English Translation</label>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">English Translation</label>
                 <input
                   type="text"
                   placeholder="e.g. Xiao Yan"
                   value={newTranslation}
                   onChange={(e) => setNewTranslation(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-white/[0.1] rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Category</label>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Category</label>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value as GlossaryCategory)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-white/[0.1] rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500"
                 >
                   <option value="character">Character</option>
                   <option value="realm">Cultivation Realm</option>
                   <option value="sect">Sect / Clan</option>
-                  <option value="item">Item / Pill / Artifact</option>
+                  <option value="item">Item / Artifact</option>
                   <option value="location">Location</option>
                   <option value="term">Term / Idiom</option>
                 </select>
@@ -223,11 +227,11 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
                   placeholder="Notes (optional)"
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 bg-[#0d1117] border border-white/[0.1] rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500"
                 />
                 <button
                   type="submit"
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs whitespace-nowrap"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs whitespace-nowrap shadow-sm touch-active"
                 >
                   Save
                 </button>
@@ -236,15 +240,15 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
           </form>
         )}
 
-        {/* Categories Tabs */}
-        <div className="px-4 py-2 border-b border-slate-800 flex items-center gap-1.5 overflow-x-auto text-xs bg-slate-950/20">
+        {/* Categories Filter Tabs */}
+        <div className="px-5 py-2.5 border-b border-white/[0.06] flex items-center gap-1.5 overflow-x-auto text-xs bg-white/[0.01] shrink-0">
           {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedCategory(c.id)}
-              className={`px-3 py-1 rounded-full transition whitespace-nowrap ${
+              className={`px-3 py-1 rounded-full transition whitespace-nowrap touch-active ${
                 selectedCategory === c.id
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-medium'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/35 font-semibold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -253,39 +257,40 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
           ))}
         </div>
 
-        {/* Glossary Table */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Glossary Terms Cards Grid */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {filteredItems.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-xs">
-              No matching terms found. Try searching or adding a new term.
+            <div className="text-center py-16 text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+              <Search className="w-8 h-8 opacity-40" />
+              <p>No matching glossary terms found</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {filteredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-slate-700 transition flex items-center justify-between group"
+                  className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] transition flex items-center justify-between group touch-active"
                 >
                   <div className="min-w-0 pr-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-200 text-sm">{item.original}</span>
+                      <span className="font-semibold text-slate-200 text-sm font-chinese">{item.original}</span>
                       <span className="text-slate-600">→</span>
-                      <span className="text-amber-300 font-medium text-sm truncate">{item.translation}</span>
+                      <span className="text-amber-300 font-bold text-sm truncate">{item.translation}</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-white/[0.06] text-slate-400">
                         {item.category}
                       </span>
                       {item.notes && (
-                        <span className="text-[11px] text-slate-500 truncate">{item.notes}</span>
+                        <span className="text-xs text-slate-500 truncate">{item.notes}</span>
                       )}
                     </div>
                   </div>
                   <button
                     onClick={() => onDeleteItem(item.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-800 transition"
+                    className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-red-400 rounded-xl hover:bg-white/[0.06] transition"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               ))}
@@ -296,4 +301,3 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({
     </div>
   );
 };
-

@@ -804,71 +804,76 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col">
         {!currentUser ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
-            <div className="p-4 rounded-3xl bg-amber-500/10 text-amber-400 mb-4 border border-amber-500/20">
-              <BookOpen className="w-12 h-12" />
+          <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 text-center animate-in fade-in max-w-xl mx-auto">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-400/20 to-amber-600/10 border border-amber-500/25 text-amber-400 mb-6 flex items-center justify-center shadow-2xl shadow-amber-500/10">
+              <span className="font-black text-3xl font-chinese">道</span>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Welcome to DaoReader</h2>
-            <p className="text-sm text-slate-400 max-w-md mb-6">
-              Sign in or create your private reader account. Each reader has their own isolated library, reading progress, and customized translation glossary!
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-3 bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+              DaoReader
+            </h2>
+            <p className="text-sm sm:text-base text-slate-400 max-w-md mb-8 leading-relaxed">
+              Read raw Chinese web novels in fluid, natural English powered by DeepSeek and Gemini. With instant glossary memory, character consistency, and EPUB export.
             </p>
             <button
               onClick={() => setIsAuthOpen(true)}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 flex items-center gap-2 transition"
+              className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-sm shadow-xl shadow-amber-500/25 flex items-center gap-2.5 transition touch-active"
             >
-              <LogIn className="w-4 h-4" /> Sign In / Create Account
+              <LogIn className="w-4 h-4" />
+              <span>Sign In / Create Account</span>
             </button>
           </div>
         ) : novels.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
-            <div className="p-4 rounded-3xl bg-amber-500/10 text-amber-400 mb-4 border border-amber-500/20">
-              <BookOpen className="w-12 h-12" />
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto animate-in fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-4 flex items-center justify-center shadow-lg">
+              <BookOpen className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold mb-2">Your Novel Library is Empty</h2>
-            <p className="text-xs sm:text-sm text-slate-400 mb-6">
-              Create your own Chinese web novel entry, scrape directly from Chinese websites (69shu, biquge), paste raw text, or upload a TXT file to start reading.
+            <h2 className="text-xl font-bold mb-2 text-slate-100">Your Novel Library is Empty</h2>
+            <p className="text-xs sm:text-sm text-slate-400 mb-6 leading-relaxed">
+              Scrape directly from Chinese websites (69shuba, biquge, fanyedao), paste raw text, or upload a TXT file to start reading.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <button
-                onClick={() => setIsImportOpen(true)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition"
-              >
-                <Plus className="w-4 h-4" /> Add / Create Novel
-              </button>
-            </div>
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs sm:text-sm shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 transition touch-active"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Your First Novel</span>
+            </button>
           </div>
         ) : currentNovel && (!currentChapter || chapters.length === 0) ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
-            <div className="p-4 rounded-3xl bg-amber-500/10 text-amber-400 mb-4 border border-amber-500/20">
-              <BookOpen className="w-10 h-10" />
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto animate-in fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-4 flex items-center justify-center shadow-lg">
+              <BookOpen className="w-8 h-8" />
             </div>
             <h2 className="text-xl font-bold mb-1 text-slate-100">
               {currentNovel.translatedTitle || currentNovel.title}
             </h2>
             {currentNovel.translatedTitle && (
-              <p className="text-xs text-slate-400 font-chinese mb-2">{currentNovel.title}</p>
+              <p className="text-xs text-slate-400 font-chinese mb-3">{currentNovel.title}</p>
             )}
-            <p className="text-xs text-amber-300/80 mb-6 max-w-sm">
-              This novel does not have any chapters yet. Add your first chapter or restore the sample cultivation chapters to test the AI reader!
+            <p className="text-xs text-amber-300/80 mb-6 max-w-sm leading-relaxed">
+              This novel does not have any chapters yet. Add your first chapter or restore sample cultivation chapters to test the AI reader!
             </p>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
                 onClick={() => setIsImportOpen(true)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition"
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition touch-active"
               >
-                <Plus className="w-4 h-4" /> + Add / Scrape Chapter
+                <Plus className="w-4 h-4" />
+                <span>+ Add / Scrape Chapter</span>
               </button>
               <button
                 onClick={handleRestoreSampleChapters}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition"
+                className="px-4 py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.1] text-xs font-semibold flex items-center justify-center gap-2 transition touch-active"
               >
-                <Sparkles className="w-4 h-4 text-amber-400" /> Restore Sample Chapters
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Restore Sample Chapters</span>
               </button>
               <button
                 onClick={() => handleDeleteNovel(currentNovel.id)}
-                className="px-3 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 border border-red-500/20 text-xs transition flex items-center justify-center gap-1.5"
+                className="px-4 py-3 rounded-2xl text-red-400 hover:bg-red-500/10 border border-red-500/20 text-xs transition flex items-center justify-center gap-1.5 touch-active"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Delete Novel
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Novel</span>
               </button>
             </div>
           </div>
