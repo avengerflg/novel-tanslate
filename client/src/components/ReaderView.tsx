@@ -358,11 +358,39 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     }
   };
 
-  // Find prev / next chapter in current novel list sorted by index
-  const sortedChapters = [...chapters].sort((a, b) => a.index - b.index);
-  const currentIndex = sortedChapters.findIndex((c) => c.id === chapter.id || c.index === chapter.index);
+  // Deduplicate chapters by index to guarantee clean navigation without getting stuck on duplicates
+  const uniqueChaptersMap = new Map<number, Chapter>();
+  for (const c of chapters) {
+    const existing = uniqueChaptersMap.get(c.index);
+    if (!existing) {
+      uniqueChaptersMap.set(c.index, c);
+    } else {
+      // Prefer translated chapter over raw
+      if (c.status === 'translated' || (c.translatedContent && c.translatedContent.length > 20)) {
+        uniqueChaptersMap.set(c.index, c);
+      }
+    }
+  }
+  const sortedChapters = Array.from(uniqueChaptersMap.values()).sort((a, b) => a.index - b.index);
+
+  // Match current chapter by ID first, then by index
+  const currentIndex = sortedChapters.findIndex((c) => c.id === chapter.id) !== -1
+    ? sortedChapters.findIndex((c) => c.id === chapter.id)
+    : sortedChapters.findIndex((c) => c.index === chapter.index);
+
   const prevChapter = currentIndex > 0 ? sortedChapters[currentIndex - 1] : null;
   const nextChapter = currentIndex >= 0 && currentIndex < sortedChapters.length - 1 ? sortedChapters[currentIndex + 1] : null;
+
+  // Auto-compute nextUrl if missing (e.g. for fanyedao.com mirrors)
+  const computedNextUrl = chapter.nextUrl || (() => {
+    if (chapter.sourceUrl && chapter.sourceUrl.includes('fanyedao.com/read/')) {
+      const match = chapter.sourceUrl.match(/\/read\/(\d+)\/(\d+)/);
+      if (match) {
+        return `https://fanyedao.com/read/${match[1]}/${parseInt(match[2], 10) + 1}`;
+      }
+    }
+    return undefined;
+  })();
 
   // Responsive max width style
   const maxWidthClass =
@@ -401,13 +429,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     if (nextChapter) {
       onNavigateChapter(nextChapter.id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (chapter.nextUrl && onFetchNextWebChapter) {
-      setIsFetchingNext(true);
-      try {
-        await onFetchNextWebChapter(chapter.nextUrl);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } finally {
-        setIsFetchingNext(false);
+    } else {
+      const targetUrl = chapter.nextUrl || computedNextUrl;
+      if (targetUrl && onFetchNextWebChapter) {
+        setIsFetchingNext(true);
+        try {
+          await onFetchNextWebChapter(targetUrl);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } finally {
+          setIsFetchingNext(false);
+        }
       }
     }
   };
@@ -704,7 +735,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <button
               type="button"
               onClick={handleNextClick}
-              disabled={!nextChapter && !chapter.nextUrl}
+              disabled={!nextChapter && !chapter.nextUrl && !computedNextUrl}
               className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 transition disabled:opacity-30 disabled:pointer-events-none touch-active"
             >
               {isFetchingNext ? (
@@ -724,7 +755,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </>
-              ) : chapter.nextUrl ? (
+              ) : chapter.nextUrl || computedNextUrl ? (
                 <>
                   <Globe className="w-4 h-4" />
                   <span>Fetch Next Web Chapter</span>
@@ -945,7 +976,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         <button
           type="button"
           onClick={handleNextClick}
-          disabled={!nextChapter && !chapter.nextUrl}
+          disabled={!nextChapter && !chapter.nextUrl && !computedNextUrl}
           aria-label="Next Chapter"
           className="w-10 h-10 rounded-full flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-20 touch-active transition relative"
           title={
@@ -956,7 +987,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               : 'Next Chapter'
           }
         >
-          {bgPreloadingStatus && !bgPreloadingStatus.includes('Ready') ? (
+          {isFetchingNext ? (
+            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+          ) : bgPreloadingStatus && !bgPreloadingStatus.includes('Ready') ? (
             <span className="relative flex items-center justify-center">
               <ChevronRight className="w-5 h-5 text-amber-400 opacity-70" />
               <span className="absolute -top-1 -right-1 flex h-2 w-2">

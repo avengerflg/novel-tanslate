@@ -95,13 +95,19 @@ export async function fetchUserNovels(): Promise<Novel[]> {
 }
 
 export async function saveUserNovel(novel: Partial<Novel>): Promise<{ id: string }> {
-  const res = await fetch('/api/novels', {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(novel)
-  });
-  if (!res.ok) throw new Error('Failed to save novel');
-  return res.json();
+  const token = getStoredToken();
+  if (!token) return { id: novel.id || '' };
+  try {
+    const res = await fetch('/api/novels', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(novel)
+    });
+    if (!res.ok) return { id: novel.id || '' };
+    return res.json();
+  } catch {
+    return { id: novel.id || '' };
+  }
 }
 
 export async function deleteUserNovel(id: string): Promise<void> {
@@ -121,13 +127,19 @@ export async function fetchNovelChapters(novelId: string): Promise<Chapter[]> {
 }
 
 export async function saveUserChapter(chapter: Partial<Chapter>): Promise<{ id: string }> {
-  const res = await fetch('/api/chapters', {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(chapter)
-  });
-  if (!res.ok) throw new Error('Failed to save chapter');
-  return res.json();
+  const token = getStoredToken();
+  if (!token) return { id: chapter.id || '' };
+  try {
+    const res = await fetch('/api/chapters', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(chapter)
+    });
+    if (!res.ok) return { id: chapter.id || '' };
+    return res.json();
+  } catch {
+    return { id: chapter.id || '' };
+  }
 }
 
 export async function saveBatchUserChapters(novelId: string, chapters: Partial<Chapter>[]): Promise<void> {

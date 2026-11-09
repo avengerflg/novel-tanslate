@@ -232,12 +232,14 @@ export const App: React.FC = () => {
     setCurrentChapter(selectedChapter);
     const updatedNovel = { ...currentNovel, currentChapterId: selectedChapter.id, updatedAt: Date.now() };
     setCurrentNovel(updatedNovel);
-    await saveUserNovel(updatedNovel);
     setActiveView('reader');
+    saveUserNovel(updatedNovel).catch(() => {});
 
     // If still not translated, automatically trigger translation right away so reader never waits
     if (selectedChapter.status !== 'translated' && (!selectedChapter.translatedContent || selectedChapter.translatedContent.length < 20)) {
-      handleTranslateChapter(selectedChapter.id);
+      setTimeout(() => {
+        handleTranslateChapter(selectedChapter.id);
+      }, 50);
     }
   };
 
@@ -497,8 +499,6 @@ export const App: React.FC = () => {
         updatedAt: Date.now()
       };
 
-      await saveUserChapter(newChapter);
-
       setChapters((prev) => {
         const exists = prev.some((c) => c.id === newChapter.id || c.index === newChapter.index);
         const next = exists
@@ -515,12 +515,19 @@ export const App: React.FC = () => {
         currentChapterId: newChapter.id
       };
 
-      await saveUserNovel(updatedNovel);
+      // 1. Immediately switch to the new chapter in UI
       setCurrentNovel(updatedNovel);
       setCurrentChapter(newChapter);
+      setActiveView('reader');
 
-      // Automatically translate newly fetched chapter
-      await handleTranslateChapter(newChapter.id);
+      // 2. Persist in background without blocking UI
+      saveUserChapter(newChapter).catch(() => {});
+      saveUserNovel(updatedNovel).catch(() => {});
+
+      // 3. Automatically translate newly fetched chapter
+      setTimeout(() => {
+        handleTranslateChapter(newChapter.id);
+      }, 50);
     } catch (err: any) {
       alert(`Failed to fetch next chapter: ${err.message}`);
     }
