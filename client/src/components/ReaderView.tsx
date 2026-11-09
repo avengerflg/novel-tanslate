@@ -29,6 +29,7 @@ interface ReaderViewProps {
   chapters: Chapter[];
   settings: ReaderSettings;
   translationSettings: TranslationSettings;
+  bgPreloadingStatus?: string | null;
   onTranslateChapter: (chapterId: string) => Promise<void>;
   onNavigateChapter: (chapterId: string) => void;
   onBackToDetail?: () => void;
@@ -49,6 +50,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   chapters,
   settings,
   translationSettings,
+  bgPreloadingStatus,
   onTranslateChapter,
   onNavigateChapter,
   onBackToDetail,
@@ -62,6 +64,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onOpenAISettings,
   onUpdateSettings
 }) => {
+  const isChapterTranslating = isTranslating || chapter.status === 'translating';
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [isFetchingNext, setIsFetchingNext] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -125,7 +128,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   // Translation timer
   useEffect(() => {
     let timer: any;
-    if (isTranslating) {
+    if (isChapterTranslating) {
       setElapsedSeconds(0);
       timer = setInterval(() => {
         setElapsedSeconds((s) => s + 1);
@@ -136,7 +139,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isTranslating]);
+  }, [isChapterTranslating]);
 
   // Scroll direction & progress tracker: hide on scroll down, show on scroll up
   useEffect(() => {
@@ -177,7 +180,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         setScrollProgress(pct);
 
         // Infinite scroll: auto load next chapter near bottom if enabled
-        if (settings.infiniteScrollEnabled && pct >= 98 && !isFetchingNext && !isTranslating) {
+        if (settings.infiniteScrollEnabled && pct >= 98 && !isFetchingNext && !isChapterTranslating) {
           handleNextClick();
         }
       }
@@ -187,7 +190,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [settings.infiniteScrollEnabled, isFetchingNext, isTranslating]);
+  }, [settings.infiniteScrollEnabled, isFetchingNext, isChapterTranslating]);
 
   // Tap on text area toggles controls visibility
   const handleContentClick = (e: React.MouseEvent) => {
@@ -445,12 +448,18 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </button>
 
         {/* Center Title: "Ch. 26 / 390: Raise the Price" (Absolute Perfect Centering) */}
-        <div className="absolute inset-x-16 top-0 bottom-0 flex items-center justify-center text-center pointer-events-none px-2">
+        <div className="absolute inset-x-16 top-0 bottom-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
           <p className="text-xs sm:text-sm truncate tracking-tight text-center max-w-full">
             <span className="text-slate-200 font-medium">Ch. {chapter.index}</span>
             <span className="text-slate-500 font-normal"> / {chapters.length}: </span>
             <span className="text-slate-300 font-normal">{displayTitle}</span>
           </p>
+          {bgPreloadingStatus && (
+            <span className="text-[10px] text-amber-400 font-medium tracking-wide flex items-center justify-center gap-1 animate-pulse leading-none mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
+              {bgPreloadingStatus}
+            </span>
+          )}
         </div>
 
         {/* Right: Circular Menu Button `≡` */}
@@ -497,10 +506,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onTranslateChapter(chapter.id)}
-                  disabled={isTranslating}
+                  disabled={isChapterTranslating}
                   className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-sm shadow-xl shadow-amber-500/20 flex items-center gap-2 transition disabled:opacity-50 touch-active"
                 >
-                  {isTranslating ? (
+                  {isChapterTranslating ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Translating ({elapsedSeconds}s)...</span>
@@ -528,7 +537,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           )}
 
           {/* Translating Skeleton */}
-          {isTranslating && (
+          {isChapterTranslating && (
             <div className="my-12 p-8 sm:p-12 rounded-3xl border border-dashed border-amber-500/30 bg-amber-500/5 text-center space-y-4 animate-pulse">
               <Loader2 className="w-10 h-10 text-amber-400 animate-spin mx-auto" />
               <div>
@@ -580,7 +589,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           )}
 
           {/* Prose Content */}
-          {!isTranslating && (
+          {!isChapterTranslating && (
             <div
               className={`entry-content ${fontClass}`}
               itemProp="articleBody"
@@ -701,7 +710,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 </>
               ) : nextChapter ? (
                 <>
-                  <span>Next Chapter</span>
+                  <span>
+                    Next Chapter{' '}
+                    {nextChapter.status === 'translated'
+                      ? '(Ready ✓)'
+                      : nextChapter.status === 'translating'
+                      ? '(Translating...)'
+                      : ''}
+                  </span>
                   <ChevronRight className="w-4 h-4" />
                 </>
               ) : chapter.nextUrl ? (
@@ -927,9 +943,26 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           onClick={handleNextClick}
           disabled={!nextChapter && !chapter.nextUrl}
           aria-label="Next Chapter"
-          className="w-10 h-10 rounded-full flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-20 touch-active transition"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-20 touch-active transition relative"
+          title={
+            nextChapter?.status === 'translated'
+              ? 'Next Chapter (Ready ✓)'
+              : bgPreloadingStatus
+              ? bgPreloadingStatus
+              : 'Next Chapter'
+          }
         >
-          <ChevronRight className="w-5 h-5" />
+          {bgPreloadingStatus && !bgPreloadingStatus.includes('Ready') ? (
+            <span className="relative flex items-center justify-center">
+              <ChevronRight className="w-5 h-5 text-amber-400 opacity-70" />
+              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+            </span>
+          ) : (
+            <ChevronRight className="w-5 h-5" />
+          )}
         </button>
       </nav>
     </div>

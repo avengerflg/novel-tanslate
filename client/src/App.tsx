@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Novel, Chapter, GlossaryItem, ReaderSettings, TranslationSettings } from './types/novel';
 import {
   AuthUser,
@@ -60,6 +60,15 @@ export const App: React.FC = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isTranslatingBatch, setIsTranslatingBatch] = useState(false);
   const [discoveredTerms, setDiscoveredTerms] = useState<GlossaryItem[]>([]);
+
+  // Background Preloading & Translation State
+  const chaptersRef = useRef<Chapter[]>([]);
+  useEffect(() => {
+    chaptersRef.current = chapters;
+  }, [chapters]);
+
+  const isPreloadingRef = useRef(false);
+  const [bgPreloadingStatus, setBgPreloadingStatus] = useState<string | null>(null);
 
   // Modals
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -181,7 +190,7 @@ export const App: React.FC = () => {
 
   // Switch chapter & jump to reader
   const handleSelectChapter = async (chapterId: string) => {
-    const chapter = chapters.find((c) => c.id === chapterId);
+    const chapter = chaptersRef.current.find((c: Chapter) => c.id === chapterId) || chapters.find((c) => c.id === chapterId);
     if (!chapter || !currentNovel) return;
 
     setCurrentChapter(chapter);
@@ -193,7 +202,7 @@ export const App: React.FC = () => {
 
   // Translate single chapter
   const handleTranslateChapter = async (chapterId: string) => {
-    const chapter = chapters.find((c) => c.id === chapterId);
+    const chapter = chaptersRef.current.find((c: Chapter) => c.id === chapterId) || chapters.find((c) => c.id === chapterId);
     if (!chapter || !currentNovel) return;
 
     // Pick active API key
@@ -219,12 +228,18 @@ export const App: React.FC = () => {
     // Sanitize API key: strip any carriage returns, newlines, and invisible unicode line/paragraph separators (\u2028, \u2029)
     activeKey = (activeKey || '').trim().replace(/[\r\n\u2028\u2029\s]/g, '');
 
+    const isCurrent = currentChapter?.id === chapterId;
+
     if (!activeKey) {
-      setIsAISettingsOpen(true);
+      if (isCurrent) {
+        setIsAISettingsOpen(true);
+      }
       return;
     }
 
-    setIsTranslating(true);
+    if (isCurrent) {
+      setIsTranslating(true);
+    }
     chapter.status = 'translating';
     setChapters([...chapters]);
 
@@ -268,11 +283,13 @@ export const App: React.FC = () => {
       } catch {}
 
       // 3. Update React chapter state
-      setChapters((prev) => prev.map((c) => (c.id === updatedChapter.id ? updatedChapter : c)));
+      setChapters((prev) => {
+        const next = prev.map((c) => (c.id === updatedChapter.id ? updatedChapter : c));
+        chaptersRef.current = next;
+        return next;
+      });
 
-      if (currentChapter?.id === updatedChapter.id) {
-        setCurrentChapter(updatedChapter);
-      }
+      setCurrentChapter((curr) => (curr?.id === updatedChapter.id ? updatedChapter : curr));
 
       // 4. If currentNovel has no English title and translation gave one, persist novel translatedTitle
       if (currentNovel && (!currentNovel.translatedTitle || currentNovel.translatedTitle === currentNovel.title) && result.translatedTitle) {
@@ -314,20 +331,26 @@ export const App: React.FC = () => {
         errorMessage: err.message || 'Translation error'
       };
       await saveUserChapter(failedChapter);
-      setChapters((prev) => prev.map((c) => (c.id === failedChapter.id ? failedChapter : c)));
-      if (currentChapter?.id === failedChapter.id) {
-        setCurrentChapter(failedChapter);
-      }
+      setChapters((prev) => {
+        const next = prev.map((c) => (c.id === failedChapter.id ? failedChapter : c));
+        chaptersRef.current = next;
+        return next;
+      });
+      setCurrentChapter((curr) => (curr?.id === failedChapter.id ? failedChapter : curr));
 
-      if (err.message && (err.message.includes('402') || err.message.includes('Insufficient Balance') || err.message.includes('API key') || err.message.includes('missing'))) {
-        if (confirm(`Translation Notice: ${err.message}\n\nWould you like to open AI Settings to enter a valid key or change AI provider?`)) {
-          setIsAISettingsOpen(true);
+      if (isCurrent) {
+        if (err.message && (err.message.includes('402') || err.message.includes('Insufficient Balance') || err.message.includes('API key') || err.message.includes('missing'))) {
+          if (confirm(`Translation Notice: ${err.message}\n\nWould you like to open AI Settings to enter a valid key or change AI provider?`)) {
+            setIsAISettingsOpen(true);
+          }
+        } else {
+          alert(`Translation notice: ${err.message}`);
         }
-      } else {
-        alert(`Translation notice: ${err.message}`);
       }
     } finally {
-      setIsTranslating(false);
+      if (isCurrent) {
+        setIsTranslating(false);
+      }
     }
   };
 
@@ -440,6 +463,143 @@ export const App: React.FC = () => {
       alert(`Failed to fetch next chapter: ${err.message}`);
     }
   };
+
+  // Background Preloading & Translation of Next Chapter while reading
+  const handlePreloadNextChapter = async (targetChapter: Chapter) => {
+    if (isPreloadingRef.current || !currentNovel) return;
+
+    // Determine active API key
+    let activeKey = '';
+    if (translationSettings.provider === 'openrouter') {
+      activeKey = translationSettings.openrouterApiKey;
+    } else if (translationSettings.provider === 'gemini') {
+      activeKey = translationSettings.geminiApiKey;
+    } else if (translationSettings.provider === 'deepseek') {
+      activeKey = translationSettings.deepseekApiKey;
+    } else if (translationSettings.provider === 'openai') {
+      activeKey = translationSettings.openaiApiKey;
+    } else {
+      activeKey = translationSettings.customApiKey;
+    }
+    activeKey = (activeKey || '').trim().replace(/[\r\n\u2028\u2029\s]/g, '');
+
+    const currentChaps: Chapter[] = chaptersRef.current.length > 0 ? chaptersRef.current : chapters;
+    const currentIndex = currentChaps.findIndex((c: Chapter) => c.id === targetChapter.id);
+    let nextChap = currentIndex >= 0 && currentIndex < currentChaps.length - 1 ? currentChaps[currentIndex + 1] : null;
+
+    // If next chapter already exists and is translated, nothing needed
+    if (nextChap && nextChap.status === 'translated') {
+      return;
+    }
+
+    isPreloadingRef.current = true;
+
+    try {
+      // 1. If next chapter does not exist in our list yet, but we have nextUrl, fetch it quietly
+      if (!nextChap && targetChapter.nextUrl) {
+        setBgPreloadingStatus(`Pre-fetching Ch. ${targetChapter.index + 1}...`);
+
+        let res: Response | null = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            res = await fetch('/api/scrape', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: targetChapter.nextUrl })
+            });
+
+            if (res.ok) break;
+
+            if (res.status === 429 || res.status === 503) {
+              await new Promise((r) => setTimeout(r, 1500 * attempt));
+              continue;
+            } else {
+              break;
+            }
+          } catch {
+            if (attempt < 3) {
+              await new Promise((r) => setTimeout(r, 1500 * attempt));
+            }
+          }
+        }
+
+        if (res && res.ok) {
+          const data = await res.json();
+          let chapterNumber = targetChapter.index + 1;
+          const titleMatch = (data.chapterTitle || '').match(/第\s*(\d+)\s*章/);
+          if (titleMatch) {
+            chapterNumber = parseInt(titleMatch[1], 10);
+          } else {
+            const urlMatch = targetChapter.nextUrl.match(/\/read\/\d+\/(\d+)/);
+            if (urlMatch) chapterNumber = parseInt(urlMatch[1], 10);
+          }
+
+          const freshChaps: Chapter[] = chaptersRef.current.length > 0 ? chaptersRef.current : chapters;
+          const existing = freshChaps.find(
+            (c: Chapter) => c.index === chapterNumber || (c.sourceUrl && c.sourceUrl === data.currentUrl)
+          );
+
+          if (existing) {
+            nextChap = existing;
+          } else {
+            const newChapter: Chapter = {
+              id: `chap_${Date.now()}_${chapterNumber}`,
+              novelId: currentNovel.id,
+              index: chapterNumber,
+              chineseTitle: data.chapterTitle || `Chapter ${chapterNumber}`,
+              rawChineseContent: data.content,
+              status: 'raw',
+              sourceUrl: data.currentUrl,
+              nextUrl: data.nextUrl,
+              prevUrl: data.prevUrl,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+
+            await saveUserChapter(newChapter);
+
+            const updatedChapters = [...freshChaps, newChapter].sort((a, b) => a.index - b.index);
+            const updatedChapterIds = updatedChapters.map((c) => c.id);
+            const updatedNovel = {
+              ...currentNovel,
+              chapterIds: updatedChapterIds
+            };
+            await saveUserNovel(updatedNovel);
+            setCurrentNovel(updatedNovel);
+            setChapters(updatedChapters);
+            chaptersRef.current = updatedChapters;
+            nextChap = newChapter;
+          }
+        }
+      }
+
+      // 2. If next chapter exists and is not translated yet, translate in background!
+      if (nextChap && nextChap.status !== 'translated' && activeKey) {
+        setBgPreloadingStatus(`Pre-translating Ch. ${nextChap.index}...`);
+        await handleTranslateChapter(nextChap.id);
+        setBgPreloadingStatus(`Ch. ${nextChap.index} Ready ✓`);
+        setTimeout(() => {
+          setBgPreloadingStatus((prev) => (prev?.includes('Ready') ? null : prev));
+        }, 4000);
+      } else {
+        setBgPreloadingStatus(null);
+      }
+    } catch (e) {
+      console.warn('[Preload] Background preload error:', e);
+      setBgPreloadingStatus(null);
+    } finally {
+      isPreloadingRef.current = false;
+    }
+  };
+
+  // Auto-trigger background preloading of next chapter while reading
+  useEffect(() => {
+    if (activeView !== 'reader' || !currentChapter || !currentNovel) return;
+    const timer = setTimeout(() => {
+      handlePreloadNextChapter(currentChapter);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [activeView, currentChapter?.id, currentNovel?.id]);
 
   // Create a brand new novel manually
   const handleCreateBlankNovel = async (novelData: {
@@ -920,6 +1080,7 @@ As waves of mockery and sarcastic laughter rippled through the surrounding crowd
             chapters={chapters}
             settings={readerSettings}
             translationSettings={translationSettings}
+            bgPreloadingStatus={bgPreloadingStatus}
             onTranslateChapter={handleTranslateChapter}
             onNavigateChapter={handleSelectChapter}
             onBackToDetail={() => setActiveView('detail')}
