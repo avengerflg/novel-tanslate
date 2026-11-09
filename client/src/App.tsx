@@ -190,14 +190,55 @@ export const App: React.FC = () => {
 
   // Switch chapter & jump to reader
   const handleSelectChapter = async (chapterId: string) => {
-    const chapter = chaptersRef.current.find((c: Chapter) => c.id === chapterId) || chapters.find((c) => c.id === chapterId);
+    let chapter = chaptersRef.current.find((c: Chapter) => c.id === chapterId) || chapters.find((c) => c.id === chapterId);
+
+    // If chapter is not found in memory, try loading from localStorage
+    if (!chapter) {
+      try {
+        const cached = localStorage.getItem(`dao_cache_chap_${chapterId}`);
+        if (cached) {
+          chapter = JSON.parse(cached);
+        }
+      } catch {}
+    }
+
+    // Always check if there's a cached translated version with translatedContent
+    if (chapter && (!chapter.translatedContent || chapter.status !== 'translated')) {
+      try {
+        const cached = localStorage.getItem(`dao_cache_chap_${chapter.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.translatedContent && parsed.translatedContent.trim().length > 20) {
+            chapter = { ...chapter, ...parsed, status: 'translated' };
+          }
+        }
+      } catch {}
+    }
+
     if (!chapter || !currentNovel) return;
 
-    setCurrentChapter(chapter);
-    const updatedNovel = { ...currentNovel, currentChapterId: chapter.id, updatedAt: Date.now() };
+    const selectedChapter = chapter;
+
+    // Ensure chapter in chapters array has the translated status
+    setChapters((prev) => {
+      const exists = prev.some((c) => c.id === selectedChapter.id);
+      const next = exists
+        ? prev.map((c) => (c.id === selectedChapter.id ? selectedChapter : c))
+        : [...prev, selectedChapter].sort((a, b) => a.index - b.index);
+      chaptersRef.current = next;
+      return next;
+    });
+
+    setCurrentChapter(selectedChapter);
+    const updatedNovel = { ...currentNovel, currentChapterId: selectedChapter.id, updatedAt: Date.now() };
     setCurrentNovel(updatedNovel);
     await saveUserNovel(updatedNovel);
     setActiveView('reader');
+
+    // If still not translated, automatically trigger translation right away so reader never waits
+    if (selectedChapter.status !== 'translated' && (!selectedChapter.translatedContent || selectedChapter.translatedContent.length < 20)) {
+      handleTranslateChapter(selectedChapter.id);
+    }
   };
 
   // Translate single chapter
@@ -240,8 +281,15 @@ export const App: React.FC = () => {
     if (isCurrent) {
       setIsTranslating(true);
     }
-    chapter.status = 'translating';
-    setChapters([...chapters]);
+    const translatingChap: Chapter = { ...chapter, status: 'translating' };
+    setChapters((prev) => {
+      const exists = prev.some((c) => c.id === chapterId);
+      const next = exists
+        ? prev.map((c) => (c.id === chapterId ? translatingChap : c))
+        : [...prev, translatingChap].sort((a, b) => a.index - b.index);
+      chaptersRef.current = next;
+      return next;
+    });
 
     try {
       const res = await fetch('/api/translate', {
@@ -284,7 +332,10 @@ export const App: React.FC = () => {
 
       // 3. Update React chapter state
       setChapters((prev) => {
-        const next = prev.map((c) => (c.id === updatedChapter.id ? updatedChapter : c));
+        const exists = prev.some((c) => c.id === updatedChapter.id);
+        const next = exists
+          ? prev.map((c) => (c.id === updatedChapter.id ? updatedChapter : c))
+          : [...prev, updatedChapter].sort((a, b) => a.index - b.index);
         chaptersRef.current = next;
         return next;
       });
@@ -332,7 +383,10 @@ export const App: React.FC = () => {
       };
       await saveUserChapter(failedChapter);
       setChapters((prev) => {
-        const next = prev.map((c) => (c.id === failedChapter.id ? failedChapter : c));
+        const exists = prev.some((c) => c.id === failedChapter.id);
+        const next = exists
+          ? prev.map((c) => (c.id === failedChapter.id ? failedChapter : c))
+          : [...prev, failedChapter].sort((a, b) => a.index - b.index);
         chaptersRef.current = next;
         return next;
       });
@@ -420,8 +474,9 @@ export const App: React.FC = () => {
       }
 
       // If chapter already exists in our array, switch to it
-      const existing = chapters.find(
-        (c) => c.index === chapterNumber || (c.sourceUrl && c.sourceUrl === data.currentUrl)
+      const freshChaps: Chapter[] = chaptersRef.current.length > 0 ? chaptersRef.current : chapters;
+      const existing = freshChaps.find(
+        (c: Chapter) => c.index === chapterNumber || (c.sourceUrl && c.sourceUrl === data.currentUrl)
       );
       if (existing) {
         await handleSelectChapter(existing.id);
@@ -429,7 +484,7 @@ export const App: React.FC = () => {
       }
 
       const newChapter: Chapter = {
-        id: `chap_${Date.now()}`,
+        id: `chap_${Date.now()}_${chapterNumber}`,
         novelId: currentNovel.id,
         index: chapterNumber,
         chineseTitle: data.chapterTitle || `Chapter ${chapterNumber}`,
@@ -444,8 +499,16 @@ export const App: React.FC = () => {
 
       await saveUserChapter(newChapter);
 
-      const updatedChapters = [...chapters, newChapter].sort((a, b) => a.index - b.index);
-      const updatedChapterIds = updatedChapters.map((c) => c.id);
+      setChapters((prev) => {
+        const exists = prev.some((c) => c.id === newChapter.id || c.index === newChapter.index);
+        const next = exists
+          ? prev.map((c) => (c.index === newChapter.index ? newChapter : c))
+          : [...prev, newChapter].sort((a, b) => a.index - b.index);
+        chaptersRef.current = next;
+        return next;
+      });
+
+      const updatedChapterIds = chaptersRef.current.map((c) => c.id);
       const updatedNovel = {
         ...currentNovel,
         chapterIds: updatedChapterIds,
@@ -454,7 +517,6 @@ export const App: React.FC = () => {
 
       await saveUserNovel(updatedNovel);
       setCurrentNovel(updatedNovel);
-      setChapters(updatedChapters);
       setCurrentChapter(newChapter);
 
       // Automatically translate newly fetched chapter
@@ -558,16 +620,22 @@ export const App: React.FC = () => {
 
             await saveUserChapter(newChapter);
 
-            const updatedChapters = [...freshChaps, newChapter].sort((a, b) => a.index - b.index);
-            const updatedChapterIds = updatedChapters.map((c) => c.id);
+            setChapters((prev) => {
+              const exists = prev.some((c) => c.id === newChapter.id || c.index === newChapter.index);
+              const next = exists
+                ? prev.map((c) => (c.index === newChapter.index ? newChapter : c))
+                : [...prev, newChapter].sort((a, b) => a.index - b.index);
+              chaptersRef.current = next;
+              return next;
+            });
+
+            const updatedChapterIds = chaptersRef.current.map((c) => c.id);
             const updatedNovel = {
               ...currentNovel,
               chapterIds: updatedChapterIds
             };
             await saveUserNovel(updatedNovel);
             setCurrentNovel(updatedNovel);
-            setChapters(updatedChapters);
-            chaptersRef.current = updatedChapters;
             nextChap = newChapter;
           }
         }

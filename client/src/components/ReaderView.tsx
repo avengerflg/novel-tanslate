@@ -65,6 +65,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onUpdateSettings
 }) => {
   const isChapterTranslating = isTranslating || chapter.status === 'translating';
+  const isTranslated =
+    chapter.status === 'translated' ||
+    (Boolean(chapter.translatedContent) && chapter.translatedContent!.trim().length > 20);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [isFetchingNext, setIsFetchingNext] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -355,10 +358,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     }
   };
 
-  // Find prev / next chapter in current novel list
-  const currentIndex = chapters.findIndex((c) => c.id === chapter.id);
-  const prevChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-  const nextChapter = currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
+  // Find prev / next chapter in current novel list sorted by index
+  const sortedChapters = [...chapters].sort((a, b) => a.index - b.index);
+  const currentIndex = sortedChapters.findIndex((c) => c.id === chapter.id || c.index === chapter.index);
+  const prevChapter = currentIndex > 0 ? sortedChapters[currentIndex - 1] : null;
+  const nextChapter = currentIndex >= 0 && currentIndex < sortedChapters.length - 1 ? sortedChapters[currentIndex + 1] : null;
 
   // Responsive max width style
   const maxWidthClass =
@@ -491,7 +495,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
 
           {/* Quick Translate Button if not translated */}
-          {chapter.status !== 'translated' && (
+          {!isTranslated && (
             <div className="mb-10 p-6 rounded-3xl bg-amber-500/10 border border-amber-500/25 text-center space-y-4">
               <div>
                 <p className="text-base font-bold text-amber-300">
@@ -599,7 +603,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               }}
             >
               {/* Mode 1: English Only */}
-              {settings.viewMode === 'english' && chapter.status === 'translated' && (
+              {(settings.viewMode === 'english' || !settings.viewMode) && isTranslated && (
                 <div className="space-y-6 sm:space-y-7">
                   {!firstParaHasHeading && (
                     <p className="text-left text-slate-200 font-medium">
@@ -638,7 +642,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               )}
 
               {/* Mode 2: Bilingual */}
-              {settings.viewMode === 'bilingual' && chapter.status === 'translated' && (
+              {settings.viewMode === 'bilingual' && isTranslated && (
                 <div className="space-y-6 sm:space-y-7">
                   {translatedParagraphs.map((para, idx) => {
                     const isSpeaking = activeSpeechIdx === idx && settings.ttsHighlightMode !== 'off';
@@ -665,7 +669,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               )}
 
               {/* Mode 3: Raw Chinese */}
-              {(settings.viewMode === 'raw' || chapter.status !== 'translated') && (
+              {(settings.viewMode === 'raw' || !isTranslated) && (
                 <div className="font-chinese space-y-5 sm:space-y-6 opacity-90">
                   {rawParagraphs.length === 0 ? (
                     <div className="text-center opacity-40 py-16">No content available</div>
@@ -712,7 +716,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 <>
                   <span>
                     Next Chapter{' '}
-                    {nextChapter.status === 'translated'
+                    {nextChapter.status === 'translated' || (nextChapter.translatedContent && nextChapter.translatedContent.length > 20)
                       ? '(Ready ✓)'
                       : nextChapter.status === 'translating'
                       ? '(Translating...)'
@@ -945,7 +949,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           aria-label="Next Chapter"
           className="w-10 h-10 rounded-full flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-20 touch-active transition relative"
           title={
-            nextChapter?.status === 'translated'
+            nextChapter?.status === 'translated' || (nextChapter?.translatedContent && nextChapter.translatedContent.length > 20)
               ? 'Next Chapter (Ready ✓)'
               : bgPreloadingStatus
               ? bgPreloadingStatus
